@@ -140,7 +140,7 @@ export const balanceTransactions = defineStripeTable<{ payout: string | null }>(
   docLlm:
     "Every balance transaction (GET /v1/balance_transactions): one row per movement of funds — charges, refunds, " +
     "adjustments, payouts, transfers, application fees, Stripe fees — with amount, fee, net (each also as an exact " +
-    "*_decimal major-unit DECIMAL), currency, type, reporting_category, status, source id, created and available_on. " +
+    "*_decimal major-unit `DECIMAL`), currency, type, reporting_category, status, source id, created and available_on. " +
     "The authoritative ledger for fee and net-revenue analysis. `payout := 'po_…'` lists only the transactions " +
     "settled in that automatic payout (payout reconciliation). available_on is filtered locally (Stripe has no " +
     "list parameter for it).",
@@ -229,60 +229,53 @@ export const charges = defineStripeTable({
     },
   },
   columns: [
-    C.id("Charge id (ch_… or py_…)."),
+    C.id("Charge id (ch_…/py_…)."),
     C.str("status", "succeeded, pending or failed."),
-    ...C.money("amount", "Amount intended to be collected."),
-    ...C.money("amount_captured", "Amount captured (can be less than amount for partial capture)."),
-    ...C.money("amount_refunded", "Amount refunded so far."),
-    C.str("currency", "Three-letter ISO currency code, lowercase."),
-    C.ref("customer", "Customer id (cus_…), if any."),
-    C.ref("payment_intent", "PaymentIntent id (pi_…) that created this charge."),
-    C.str("payment_method", "PaymentMethod id (pm_…) used."),
-    C.str(
-      "payment_method_type",
-      "Payment method type: card, us_bank_account, sepa_debit, link …",
-      "payment_method_details.type",
-    ),
-    C.str("description", "Description of the charge."),
-    C.bool("captured", "Whether the charge was captured."),
-    C.bool("paid", "True if the charge succeeded or was authorized for later capture."),
-    C.bool("refunded", "True if fully refunded."),
-    C.bool("disputed", "True if the charge has been disputed."),
-    C.str("failure_code", "Error code when the charge failed (card_declined, expired_card …)."),
-    C.str("failure_message", "Human-readable failure reason."),
-    C.str(
-      "outcome_type",
-      "Radar/network outcome: authorized, manual_review, issuer_declined, blocked or invalid.",
-      "outcome.type",
-    ),
-    C.str(
-      "outcome_network_status",
-      "approved_by_network, declined_by_network, not_sent_to_network or reversed_after_approval.",
-      "outcome.network_status",
-    ),
-    C.str("outcome_reason", "Reason for the outcome (e.g. highest_risk_level, generic_decline).", "outcome.reason"),
-    C.str("outcome_risk_level", "Radar risk level: normal, elevated, highest or not_assessed.", "outcome.risk_level"),
-    C.int("outcome_risk_score", "Radar risk score 0-100 (Radar for Fraud Teams).", "outcome.risk_score"),
-    C.str("outcome_seller_message", "Explanation of the outcome for you.", "outcome.seller_message"),
-    ...card("payment_method_details.card"),
-    C.str("billing_name", "Billing name.", "billing_details.name"),
+    ...C.money("amount", "Charge amount."),
+    ...C.money("amount_captured", "Captured."),
+    ...C.money("amount_refunded", "Refunded."),
+    C.str("currency", "ISO currency, lowercase."),
+    C.ref("customer", "Customer id."),
+    C.ref("payment_intent", "PaymentIntent id."),
+    C.str("payment_method", "PaymentMethod id."),
+    C.str("payment_method_type", "card, sepa_debit, link …", "payment_method_details.type"),
+    C.str("description", "Description."),
+    C.bool("captured", "Captured?"),
+    C.bool("paid", "Succeeded or authorized?"),
+    C.bool("refunded", "Fully refunded?"),
+    C.bool("disputed", "Disputed?"),
+    C.str("failure_code", "Decline code (card_declined …)."),
+    C.str("failure_message", "Failure reason."),
+    C.str("outcome_type", "authorized, manual_review, issuer_declined, blocked, invalid.", "outcome.type"),
+    C.str("outcome_risk_level", "Radar risk: normal, elevated, highest.", "outcome.risk_level"),
+    C.int("outcome_risk_score", "Radar risk score 0-100.", "outcome.risk_score"),
+    C.str("outcome_seller_message", "Outcome explanation.", "outcome.seller_message"),
+    C.str("card_brand", "Card brand (visa, amex …).", "payment_method_details.card.brand"),
+    C.str("card_last4", "Card last four digits.", "payment_method_details.card.last4"),
+    C.int("card_exp_month", "Card expiry month.", "payment_method_details.card.exp_month"),
+    C.int("card_exp_year", "Card expiry year.", "payment_method_details.card.exp_year"),
+    C.str("card_funding", "credit, debit, prepaid.", "payment_method_details.card.funding"),
+    C.str("card_country", "Card issuer country.", "payment_method_details.card.country"),
     C.str("billing_email", "Billing email.", "billing_details.email"),
-    C.str("billing_country", "Billing address country.", "billing_details.address.country"),
-    C.str("billing_postal_code", "Billing address postal code.", "billing_details.address.postal_code"),
-    C.str("receipt_email", "Where the receipt was sent."),
-    C.str("receipt_url", "Link to the hosted receipt."),
-    C.str(
-      "statement_descriptor",
-      "Statement descriptor.",
-      (r) => r.calculated_statement_descriptor ?? r.statement_descriptor,
-    ),
-    C.int("application_fee_amount", "Connect application fee requested (minor units)."),
+    C.str("billing_country", "Billing country.", "billing_details.address.country"),
+    C.str("billing_postal_code", "Billing postal code.", "billing_details.address.postal_code"),
+    C.str("receipt_url", "Hosted receipt."),
     C.str("transfer_group", "Connect transfer group."),
-    C.ref("balance_transaction", "Balance transaction id (txn_…)."),
-    ...balanceTransactionColumns(),
+    C.ref("balance_transaction", "Balance transaction id."),
+    ...expanding("balance_transaction", [
+      ...C.money("fee", "Stripe fee (settlement currency).", "balance_transaction.fee", "balance_transaction.currency"),
+      ...C.money(
+        "net",
+        "Net to balance (settlement currency).",
+        "balance_transaction.net",
+        "balance_transaction.currency",
+      ),
+      C.str("settlement_currency", "Currency of fee and net.", "balance_transaction.currency"),
+      C.time("available_on", "When funds become available.", "balance_transaction.available_on"),
+    ]),
     created("charge"),
     C.livemode(),
-    C.meta(),
+    C.meta("Your metadata."),
   ],
   examples: [
     {
@@ -1347,7 +1340,7 @@ export const prices = defineStripeTable({
   keywords: "stripe, prices, pricing, plans, recurring, unit amount, lookup key, tiers",
   docLlm:
     "Prices (GET /v1/prices or /search): product, active, currency, unit_amount (+ unit_amount_decimal) and the " +
-    "precise unit_amount_precise (DECIMAL(38,12), for sub-cent prices), type (one_time, recurring), " +
+    "precise unit_amount_precise (`DECIMAL(38,12)`, for sub-cent prices), type (one_time, recurring), " +
     "billing_scheme, recurring interval / interval_count / usage_type / meter, lookup_key, nickname, " +
     "tax_behavior, tiers_mode, created and metadata.",
   docMd: "## prices(search := NULL, expand := NULL)\n\nHow much each product costs.",

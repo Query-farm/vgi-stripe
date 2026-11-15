@@ -1,16 +1,102 @@
 # Private graders for the public vgi.agent_test_tasks in the worker's catalog metadata.
-# `vgi-lint lint --ai` runs an agent on each prompt and grades it with check_sql.
-# See https://github.com/Query-farm/vgi-lint-check (VGI920).
+# `vgi-lint lint --ai` runs an agent on each prompt and grades it (VGI920).
+#
+# Every stripe function needs a `stripe` secret holding an API key for a Stripe account
+# (the offline replay account in test/mock_api/server.py works too: API_KEY
+# 'rk_test_fixture', BASE_URL 'http://127.0.0.1:<port>'). The fixture account is fixed,
+# so every task compares against a reference query.
 tasks:
-  - name: formal_greeting
-    reference_sql: SELECT stripe.main.greet('Grace', 'formal') AS greeting
-  - name: sum_of_squares
-    reference_sql: SELECT sum(squared) AS total FROM stripe.main.sequence_table(10)
-  - name: stepped_sequence
-    reference_sql: SELECT n FROM stripe.main.sequence_table(4, step := 5) ORDER BY n
-  # Reads the public demo API (https://vgi-starter-api.query-farm.services/v1).
-  - name: items_per_category
-    check_sql: >-
-      SELECT count(*) = 3 AND sum(items) = 25
-      FROM (SELECT category, count(*) AS items
-            FROM stripe.main.fetch_items('https://vgi-starter-api.query-farm.services/v1') GROUP BY category)
+  - name: gross_volume_by_currency
+    reference_sql: >-
+      SELECT currency, sum(amount_decimal) AS gross FROM stripe.main.charges()
+      WHERE status = 'succeeded' GROUP BY currency ORDER BY currency
+  - name: failed_charges
+    reference_sql: SELECT id, failure_code FROM stripe.main.charges() WHERE status = 'failed' ORDER BY id
+  - name: refund_total
+    reference_sql: >-
+      SELECT currency, sum(amount_decimal) AS refunded FROM stripe.main.refunds()
+      WHERE status = 'succeeded' GROUP BY currency ORDER BY currency
+  - name: open_disputes
+    reference_sql: >-
+      SELECT id, amount_decimal, currency FROM stripe.main.disputes()
+      WHERE status IN ('needs_response', 'warning_needs_response') ORDER BY id
+  - name: fees_by_type
+    reference_sql: >-
+      SELECT type, sum(fee_decimal) AS fees FROM stripe.main.balance_transactions()
+      WHERE currency = 'usd' GROUP BY type ORDER BY type
+  - name: paid_payouts
+    reference_sql: SELECT id, arrival_date FROM stripe.main.payouts() WHERE status = 'paid' ORDER BY id
+  - name: customer_lookup
+    reference_sql: SELECT id, name FROM stripe.main.customers() WHERE email = 'ada@example.com'
+  - name: expiring_cards
+    reference_sql: >-
+      SELECT DISTINCT customer FROM stripe.main.payment_methods()
+      WHERE type = 'card' AND card_exp_year <= 2026 ORDER BY customer
+  - name: open_invoices
+    reference_sql: SELECT id, amount_remaining_decimal FROM stripe.main.invoices() WHERE status = 'open' ORDER BY id
+  - name: active_subscriptions
+    reference_sql: SELECT count(*) AS subscriptions FROM stripe.main.subscriptions() WHERE status IN ('active', 'trialing')
+  - name: mrr_prices
+    reference_sql: >-
+      SELECT p.id, pr.name FROM stripe.main.prices() p JOIN stripe.main.products() pr ON pr.id = p.product
+      WHERE p.type = 'recurring' AND p.recurring_interval = 'month' ORDER BY p.id
+  - name: event_types
+    reference_sql: SELECT type, count(*) AS events FROM stripe.main.events() GROUP BY type ORDER BY type
+  - name: connect_transfers
+    reference_sql: >-
+      SELECT destination, sum(amount_decimal) AS transferred FROM stripe.main.transfers()
+      GROUP BY destination ORDER BY destination
+  - name: available_balance
+    reference_sql: >-
+      SELECT currency, amount_decimal FROM stripe.main.balance() WHERE bucket = 'available' ORDER BY currency
+  - name: abandoned_intents
+    reference_sql: >-
+      SELECT id, cancellation_reason FROM stripe.main.payment_intents() WHERE status = 'canceled' ORDER BY id
+  - name: fraud_warnings
+    reference_sql: >-
+      SELECT charge FROM stripe.main.early_fraud_warnings() WHERE actionable ORDER BY charge
+  - name: checkout_conversion
+    reference_sql: >-
+      SELECT status, count(*) AS sessions FROM stripe.main.checkout_sessions() GROUP BY status ORDER BY status
+  - name: invoice_line_products
+    reference_sql: >-
+      SELECT product, currency, sum(amount_decimal) AS billed FROM stripe.main.invoice_line_items() WHERE product IS NOT NULL GROUP BY ALL ORDER BY product, currency
+  - name: pending_invoice_items
+    reference_sql: >-
+      SELECT id, customer FROM stripe.main.invoice_items() WHERE pending ORDER BY id
+  - name: seat_counts
+    reference_sql: >-
+      SELECT subscription_id, quantity FROM stripe.main.subscription_items() WHERE price = 'price_basic_monthly' ORDER BY subscription_id
+  - name: schedule_status
+    reference_sql: >-
+      SELECT id, customer FROM stripe.main.subscription_schedules() WHERE status = 'not_started' ORDER BY id
+  - name: issued_credit_notes
+    reference_sql: >-
+      SELECT id, invoice, total_decimal FROM stripe.main.credit_notes() WHERE status = 'issued' ORDER BY id
+  - name: active_meters
+    reference_sql: >-
+      SELECT display_name, event_name FROM stripe.main.billing_meters() WHERE status = 'active' ORDER BY display_name
+  - name: daily_api_usage
+    reference_sql: >-
+      SELECT start_time, aggregated_value FROM stripe.main.meter_event_summaries('mtr_api_calls', 'cus_margaret', TIMESTAMPTZ '2026-11-01 00:00:00+00', TIMESTAMPTZ '2026-11-04 00:00:00+00', value_grouping_window := 'day') ORDER BY start_time
+  - name: valid_coupons
+    reference_sql: >-
+      SELECT id, times_redeemed FROM stripe.main.coupons() WHERE valid ORDER BY id
+  - name: active_promo_codes
+    reference_sql: >-
+      SELECT code, coupon FROM stripe.main.promotion_codes() WHERE active ORDER BY code
+  - name: inclusive_tax_rates
+    reference_sql: >-
+      SELECT display_name, country, percentage FROM stripe.main.tax_rates() WHERE active AND inclusive ORDER BY display_name
+  - name: unpayable_accounts
+    reference_sql: >-
+      SELECT id FROM stripe.main.accounts() WHERE NOT payouts_enabled ORDER BY id
+  - name: platform_fees
+    reference_sql: >-
+      SELECT account, sum(amount_decimal - amount_refunded_decimal) AS net_fees FROM stripe.main.application_fees() GROUP BY account ORDER BY account
+  - name: webhook_hosts
+    reference_sql: >-
+      SELECT url_host, status FROM stripe.main.webhook_endpoints() ORDER BY url_host
+  - name: dispute_evidence_files
+    reference_sql: >-
+      SELECT id, filename FROM stripe.main.files() WHERE purpose = 'dispute_evidence' ORDER BY id

@@ -7,7 +7,7 @@
 location = "bin/vgi-stripe-worker"
 
 # Fail on warnings while you build. Raise this to "info" before you publish the worker.
-fail_on = "warning"
+fail_on = "info"
 
 # Waive a finding only with a kind and a reason, so the waiver can be audited:
 #   domain-exemption  permanent and legitimate for this worker

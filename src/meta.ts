@@ -107,8 +107,8 @@ export const CATALOG_DOC_LLM =
   "Every function is a table function in stripe.main and needs a `stripe` DuckDB secret: CREATE SECRET (TYPE " +
   "stripe, API_KEY 'rk_live_…') — a restricted key with read permissions is recommended; STRIPE_ACCOUNT reads " +
   "a Connect account, API_VERSION pins Stripe-Version. Amounts are integers in the currency's minor unit " +
-  "(`amount` BIGINT, cents for USD, yen for JPY) with an exact `amount_decimal` DECIMAL(38,3) in the major unit; " +
-  "timestamps are TIMESTAMPTZ; metadata is MAP(VARCHAR, VARCHAR); `raw` holds the whole object as JSON. WHERE " +
+  "(`amount` `BIGINT`, cents for USD, yen for JPY) with an exact `amount_decimal` `DECIMAL(38,3)` in the major unit; " +
+  "timestamps are `TIMESTAMPTZ`; metadata is `MAP(VARCHAR, VARCHAR)`; `raw` holds the whole object as `JSON`. WHERE " +
   "filters on created (and other time) ranges, ids such as customer / subscription / payment_intent, status and " +
   "type push down as list parameters; filters the list API lacks (charge status, amount, customer name, product " +
   "name …) switch to the eventually consistent Search API; `search := ` takes a raw Stripe search query (e.g. " +
@@ -157,6 +157,37 @@ export const AGENT_TEST_TASKS = [
   { name: "mrr_prices", prompt: "Which recurring monthly prices exist, with their product names?" },
   { name: "event_types", prompt: "How many events of each type does the event feed contain?" },
   { name: "connect_transfers", prompt: "How much was transferred to each connected account?" },
+  {
+    name: "available_balance",
+    prompt: "How much money is available in the Stripe balance per currency, in major units?",
+  },
+  { name: "abandoned_intents", prompt: "Which PaymentIntents were canceled, and why?" },
+  { name: "fraud_warnings", prompt: "Which charges have an actionable Radar early fraud warning?" },
+  { name: "checkout_conversion", prompt: "How many Checkout Sessions are complete, expired and open?" },
+  { name: "invoice_line_products", prompt: "How much has been invoiced per product (major units, per currency)?" },
+  { name: "pending_invoice_items", prompt: "Which invoice items are still pending (not on an invoice yet)?" },
+  {
+    name: "seat_counts",
+    prompt: "How many seats (quantity) does each subscription have on the Basic Plan monthly price?",
+  },
+  { name: "schedule_status", prompt: "Which subscription schedules have not started yet?" },
+  { name: "issued_credit_notes", prompt: "What credit notes have been issued, for which invoices and amounts?" },
+  { name: "active_meters", prompt: "Which billing meters are active and what event names do they count?" },
+  {
+    name: "daily_api_usage",
+    prompt:
+      "How many API calls did customer cus_margaret make per day between 2026-11-01 and 2026-11-04 (meter mtr_api_calls)?",
+  },
+  { name: "valid_coupons", prompt: "Which coupons are still valid, and how often has each been redeemed?" },
+  { name: "active_promo_codes", prompt: "Which promotion codes are active, and for which coupon?" },
+  { name: "inclusive_tax_rates", prompt: "Which active tax rates are inclusive?" },
+  { name: "unpayable_accounts", prompt: "Which connected accounts cannot receive payouts yet?" },
+  {
+    name: "platform_fees",
+    prompt: "What net application fees (after refunds) did the platform earn per connected account?",
+  },
+  { name: "webhook_hosts", prompt: "Which hosts receive Stripe webhooks, and are they enabled?" },
+  { name: "dispute_evidence_files", prompt: "Which files were uploaded as dispute evidence?" },
 ];
 
 /** Bind-only probes: each binds the function and shows its columns without fetching (LIMIT 0). */
@@ -175,7 +206,7 @@ export const EXECUTABLE_EXAMPLES = [
 ];
 
 export const CATALOG_TAGS: Record<string, string> = {
-  "vgi.title": "Stripe",
+  "vgi.title": "Stripe Payments & Billing",
   "vgi.subtitle": "Stripe payments, billing, customers, payouts, Connect and events as SQL tables.",
   "vgi.doc_llm": CATALOG_DOC_LLM,
   "vgi.doc_md": CATALOG_DOC_MD,

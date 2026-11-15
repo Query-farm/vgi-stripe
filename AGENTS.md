@@ -23,18 +23,21 @@ Faster loops while iterating: `make test-unit`, `make test-sql`, `make lint-expl
 ```
 src/
   worker.ts        # entry point: serves the catalog over stdio, --unix or --http
-  catalog.ts       # assembles the catalog; add new functions to FUNCTIONS
-  meta.ts          # catalog/schema metadata + helpers (objectTags, column)
-  greet.ts         # scalar example (overloads, const param with choices)
-  sequence.ts      # table function example (named args, streaming state)
-  fetch_items.ts   # REST API table function (pagination, retries, secrets)
+  catalog.ts       # assembles the catalog and the `stripe` secret type
+  meta.ts          # catalog/schema metadata, agent tasks, pinned Stripe API version
+  stripe/
+    client.ts      # auth (secret), Stripe-Account / Stripe-Version, retries, bracketed query encoding
+    pushdown.ts    # WHERE → list parameters, second ranges, Stripe Search clauses
+    table.ts       # the table-function factory: paging cursors, Search, expansion, fan-out
+    money.ts       # currency exponents; minor units → exact decimals
+    resources.ts   # one spec per Stripe endpoint (31 functions)
   cli.ts           # flag parsing: stdio / --unix / --http (PORT:<n>, /health)
   log.ts           # stderr logger
-bin/               # vgi-stripe-worker (what DuckDB launches) and run-recipe
-tests/             # bun unit tests (worker subprocess + mock API)
-test/sql/          # sqllogictest files run through DuckDB
-test/mock_api/     # offline mock of the REST API used by tests
-examples/          # recipes: pushdown, caching, catalog tables, aggregates, COPY …
+bin/               # vgi-stripe-worker (what DuckDB launches)
+tests/             # bun unit tests (pure logic + client against the replay server)
+test/sql/          # sqllogictest files run through DuckDB (stripe.test, pushdown.test)
+test/mock_api/     # strict offline Stripe replay server (stdlib Python)
+test/fixtures/     # generated account + trimmed Stripe OpenAPI spec, and their builders
 ci/                # integration harness used by `make test-sql` and CI
 scripts/           # vgi_template.py (init / template-diff)
 vgi-agent-tests.yaml  # private graders for the agent test tasks
@@ -42,15 +45,15 @@ vgi-agent-tests.yaml  # private graders for the agent test tasks
 
 ## Recipe: add a function
 
-1. Create `src/<name>.ts`. Copy the closest example: `greet.ts` for a scalar,
-   `sequence.ts` for a generator, `fetch_items.ts` for an API.
+1. Add a spec to `src/stripe/resources.ts` (copy the closest endpoint) and list it in
+   `FUNCTIONS`; extend `test/fixtures/build_fixture.py` and the replay server's routes.
 2. Declare arguments: `params` + `argDocs` (scalars), or the ordered `parameters`
    list when a constant needs `choices`/`ge`/`le`. Table functions use `args`,
    `argDocs` and `argConstraints`; an argument listed in `argDefaults` becomes a
    named argument (`step := 2`), the others are positional.
 3. Give it `description`, `tags: objectTags(...)` (from `src/meta.ts`) and
    `examples`.
-4. Add it to `FUNCTIONS` in `src/catalog.ts`.
+4. Add it to `FUNCTIONS` in `src/stripe/resources.ts`.
 
 Then, for every new function:
 
@@ -135,8 +138,8 @@ and `examples/writable-tx-worker.ts` in vgi-typescript are complete workers.
 - **State must be serializable.** Table-function state (`initialState`/`process`) must be a plain object of numbers, bigints, strings, booleans, arrays or nested plain objects (no `Date`, `Map` or class instances): the SDK infers an Arrow schema for it and serializes it. Over HTTP each batch can be served by a different process, so the cursor travels with the request. Keep it small, and never put secrets in it.
 - **Examples must be deterministic.** Add `ORDER BY`, and no `now()`, random values or
   network. Examples that hit a live API go in `examples`, not `executable_examples`.
-- **Credentials.** Read them from a DuckDB secret first (`CREATE SECRET (TYPE stripe_api, …)`),
-  then from an environment variable. Never put them in logs, examples or the repo, and
+- **Credentials.** Read them from the DuckDB secret (`CREATE SECRET (TYPE stripe, API_KEY …)`),
+  never from an environment variable. Never put them in logs, examples or the repo, and
   keep them out of table-function state unless the state rule above says
   the SDK encrypts it. Workers that need real credentials set `execute: false` on the metadata check.
 - **Errors.** Raise errors with a clear message. For HTTP failures, include the status
@@ -175,7 +178,7 @@ and `examples/writable-tx-worker.ts` in vgi-typescript are complete workers.
 ## Useful prompts
 
 - "Add a scalar `slugify(text VARCHAR) -> VARCHAR` with full metadata and tests."
-- "Replace `fetch_items` with a table function for <API>. Map its JSON to typed columns,
-  read the token from a `stripe_api` secret, and add mock-server tests."
+- "Add a table function for Stripe's `/v1/setup_intents` with full metadata, replay-server
+  routes and fixtures, and SQL tests asserting what pushes down."
 - "Add a catalog table `countries` (code, name) with a primary key, following
   `examples/catalog_tables`."

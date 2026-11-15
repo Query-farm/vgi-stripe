@@ -150,21 +150,15 @@ export const C = {
     }),
   meta: (doc = "Your key/value metadata on the object (Stripe metadata), as a MAP.") =>
     mk("metadata", map(utf8(), utf8()), "MAP(VARCHAR, VARCHAR)", doc, (r) => asMeta(r.metadata)),
-  livemode: () => C.bool("livemode", "True for live-mode objects, false for test mode."),
+  livemode: () => C.bool("livemode", "Live mode (false = test mode)."),
   /**
    * A minor-unit amount as two columns: `<name>` BIGINT (as Stripe returns it, e.g. cents)
    * and `<name>_decimal` DECIMAL(38,3) in the major unit using the currency's exponent.
    */
   money: (name: string, doc: string, path: PathOr = name, currency: PathOr = "currency"): Col[] => [
-    mk(name, int64(), "BIGINT", `${doc} In the currency's minor unit (e.g. cents; yen for JPY).`, (r) =>
-      asBigint(pick(r, path)),
-    ),
-    mk(
-      `${name}_decimal`,
-      AMOUNT_TYPE,
-      `DECIMAL(38,${AMOUNT_SCALE})`,
-      `${doc} In the major unit (e.g. 12.340 = $12.34), using Stripe's exponent for the currency.`,
-      (r) => minorToDecimal(pick(r, path), pick(r, currency)),
+    mk(name, int64(), "BIGINT", `${doc} (minor units)`, (r) => asBigint(pick(r, path))),
+    mk(`${name}_decimal`, AMOUNT_TYPE, `DECIMAL(38,${AMOUNT_SCALE})`, `${doc} (major units, exact)`, (r) =>
+      minorToDecimal(pick(r, path), pick(r, currency)),
     ),
   ],
   /** A precise unit amount from a Stripe `*_decimal` string (minor units) as DECIMAL(38,12) major units. */
@@ -177,12 +171,8 @@ export const C = {
     nullable: false,
   }),
   raw: () =>
-    mk(
-      "raw",
-      utf8(),
-      "JSON",
-      "The whole Stripe object as returned (expanded fields included; client_secret / secret values redacted).",
-      (r) => JSON.stringify(redactSecrets(r)),
+    mk("raw", utf8(), "JSON", "The whole object as JSON, expansions included, secrets redacted.", (r) =>
+      JSON.stringify(redactSecrets(r)),
     ),
 };
 
@@ -428,7 +418,7 @@ const COMMON_ARG_DOCS = {
   stripe_account:
     "Connected account id (acct_…) to read as, sent as the Stripe-Account header; overrides the secret's STRIPE_ACCOUNT.",
   expand:
-    "Extra Stripe expand paths for each object (e.g. ['customer']), returned inside the raw JSON column. Each costs response size and latency, not extra requests; at most 3 levels.",
+    "Extra Stripe expand paths for each object (e.g. ['customer']), returned inside the raw JSON column. Each one costs response size and latency, not extra requests; nested paths such as 'invoice.subscription' are allowed.",
   search:
     'Raw Stripe Search query (e.g. \'metadata["plan"]:"pro"\'), ANDed with pushed filters. Uses the eventually consistent Search API.',
 };
