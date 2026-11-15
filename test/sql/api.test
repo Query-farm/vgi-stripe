@@ -1,0 +1,378 @@
+# name: test/sql/api.test
+# description: The spec-driven layer: pushdown, retrieve-by-id, nested-list fan-out, arguments, redaction, not-enabled products and api.get (asserted on rows and the replay server's request log)
+# group: [stripe]
+
+require vgi
+
+require-env STRIPE_WORKER
+
+require-env STRIPE_FIXTURE_URL
+
+statement ok
+LOAD httpfs;
+
+statement ok
+LOAD json;
+
+statement ok
+ATTACH 'stripe' (TYPE vgi, LOCATION '{STRIPE_WORKER}');
+
+statement ok
+CREATE SECRET stripe_fixture (TYPE stripe, API_KEY 'sk_test_fixture', BASE_URL '{STRIPE_FIXTURE_URL}');
+
+statement ok
+CREATE MACRO log_rows(u) AS TABLE SELECT * FROM read_json(u, columns = {seq: 'BIGINT', path: 'VARCHAR', query: 'VARCHAR', auth: 'VARCHAR', account: 'VARCHAR', version: 'VARCHAR'});
+
+statement ok
+CREATE MACRO mark_now() AS (SELECT coalesce(max(seq), 0) FROM log_rows('{STRIPE_FIXTURE_URL}/__requests'));
+
+statement ok
+SET VARIABLE mark = mark_now();
+
+statement ok
+CREATE MACRO reqs(p) AS TABLE SELECT seq, path, query::JSON AS q FROM log_rows('{STRIPE_FIXTURE_URL}/__requests?path=' || p) WHERE seq > getvariable('mark');
+
+statement ok
+CREATE MACRO since() AS TABLE SELECT seq, path, query::JSON AS q FROM log_rows('{STRIPE_FIXTURE_URL}/__requests') WHERE seq > getvariable('mark');
+
+# ------------------------------------------------------------ shape
+
+# Columns come from the response schema: ids, enums, TIMESTAMPTZ, MAP metadata, JSON nested objects, raw.
+query IIII
+SELECT id, status, created::VARCHAR, metadata['n'] FROM stripe.issuing.cards() ORDER BY created DESC;
+----
+ic_genisscards0	active	2026-10-31 00:00:00+00	0
+ic_genisscards1	canceled	2026-10-30 00:00:00+00	1
+ic_genisscards2	inactive	2026-10-29 00:00:00+00	2
+ic_genisscards3	active	2026-10-28 00:00:00+00	3
+
+query T
+SELECT column_type FROM (DESCRIBE SELECT * FROM stripe.issuing.cards()) WHERE column_name IN ('cardholder');
+----
+JSON
+
+# 4 cards on pages of 3: the cursor (starting_after) is used once.
+query II
+SELECT count(*), count(*) FILTER (WHERE q->>'starting_after' IS NOT NULL) FROM reqs('/v1/issuing/cards');
+----
+2	1
+
+# Money: an integer amount beside a currency gets an exact major-unit *_decimal companion.
+query III
+SELECT amount, amount_decimal, currency FROM stripe.payments.charges() WHERE id = 'ch_1';
+----
+2000	20.000	gbp
+
+# A small flat object becomes a STRUCT (field names that are SQL keywords included).
+query T
+SELECT column_type FROM (DESCRIBE SELECT period FROM stripe.billing.invoice_items());
+----
+STRUCT("end" TIMESTAMP WITH TIME ZONE, "start" TIMESTAMP WITH TIME ZONE)
+
+# ------------------------------------------------------------ pushdown
+
+statement ok
+SET VARIABLE mark = mark_now();
+
+# Equality on a documented enum parameter → status=…
+query I
+SELECT count(*) FROM stripe.issuing.cards() WHERE status = 'active';
+----
+2
+
+query T
+SELECT q->>'status' FROM reqs('/v1/issuing/cards');
+----
+active
+
+statement ok
+SET VARIABLE mark = mark_now();
+
+# A time range → created[gte]/created[lte] in whole seconds.
+query I
+SELECT count(*) FROM stripe.treasury.financial_accounts() WHERE created >= TIMESTAMPTZ '2026-10-29 00:00:00+00' AND created < TIMESTAMPTZ '2026-10-31 00:00:00+00';
+----
+2
+
+query II
+SELECT q->>'created[gte]', q->>'created[lte]' FROM reqs('/v1/treasury/financial_accounts');
+----
+1793232000	1793404799
+
+statement ok
+SET VARIABLE mark = mark_now();
+
+# An IN list on id with an ids[] parameter → one request with ids[].
+query I
+SELECT count(*) FROM stripe.billing.products() WHERE id IN ('prod_pro', 'prod_basic');
+----
+2
+
+query T
+SELECT q->>'ids[]' FROM reqs('/v1/products');
+----
+["prod_basic","prod_pro"]
+
+statement ok
+SET VARIABLE mark = mark_now();
+
+# `id =` / IN on a function with a retrieve endpoint → one GET /v1/<resource>/{id} per id; a missing id is no row.
+query II
+SELECT id, status FROM stripe.payments.charges() WHERE id IN ('ch_1', 'ch_nope') ORDER BY id;
+----
+ch_1	succeeded
+
+query T
+SELECT string_agg(path, ',' ORDER BY path) FROM since() WHERE path LIKE '/v1/charges%';
+----
+/v1/charges/ch_1,/v1/charges/ch_nope
+
+statement ok
+SET VARIABLE mark = mark_now();
+
+# The raw search := argument switches to the Search API.
+query I
+SELECT count(*) > 0 FROM stripe.payments.charges(search := 'status:"succeeded"');
+----
+true
+
+query I
+SELECT count(*) >= 1 AND bool_and(q->>'query' = 'status:"succeeded"') FROM reqs('/v1/charges/search');
+----
+true
+
+statement ok
+SET VARIABLE mark = mark_now();
+
+# A query parameter that names no column is a named argument.
+query I
+SELECT count(*) >= 0 FROM stripe.balance.balance_transactions(payout := 'po_1');
+----
+true
+
+query T
+SELECT q->>'payout' FROM reqs('/v1/balance_transactions');
+----
+po_1
+
+statement ok
+SET VARIABLE mark = mark_now();
+
+# params := passes any documented parameter verbatim.
+query I
+SELECT count(*) FROM stripe.connect.account_persons(account_id := 'acct_connected1', params := MAP {'relationship[owner]': 'true'});
+----
+2
+
+query T
+SELECT q->>'relationship[owner]' FROM reqs('/v1/accounts/acct_connected1/persons');
+----
+true
+
+statement error
+SELECT * FROM stripe.connect.account_persons(account_id := 'acct_connected1', params := MAP {'colour': 'red'});
+----
+<REGEX>:.*'colour' is not a documented parameter.*
+
+statement error
+SELECT * FROM stripe.payments.charges(params := MAP {'limit': '5'});
+----
+<REGEX>:.*cannot set 'limit'.*
+
+# A parameter Stripe requires: a clear error when missing, or taken from a pushed `=` on its column.
+statement error
+SELECT * FROM stripe.tax.locations();
+----
+<REGEX>:.*type := is required.*
+
+query I
+SELECT count(*) > 0 FROM stripe.tax.locations() WHERE type = 'performance';
+----
+true
+
+# ------------------------------------------------------------ nested lists (fan-out)
+
+statement ok
+SET VARIABLE mark = mark_now();
+
+# No parent id: list every customer, then each customer's tax ids.
+query II
+SELECT customer, count(*) FROM stripe.billing.customer_tax_ids() GROUP BY customer ORDER BY customer;
+----
+cus_ada	2
+cus_grace	2
+
+query II
+SELECT count(*) FILTER (WHERE path = '/v1/customers'), count(*) FILTER (WHERE path LIKE '/v1/customers/%/tax_ids') FROM since();
+----
+2	6
+
+statement ok
+SET VARIABLE mark = mark_now();
+
+# The parent as a named argument or a pushed = / IN: only those parents are read.
+query I
+SELECT count(*) FROM stripe.billing.customer_tax_ids(customer_id := 'cus_ada');
+----
+2
+
+query I
+SELECT count(*) FROM stripe.billing.customer_tax_ids() WHERE customer IN ('cus_grace', 'cus_radia');
+----
+2
+
+query II
+SELECT count(*) FILTER (WHERE path = '/v1/customers'), string_agg(DISTINCT path, ',' ORDER BY path) FROM since();
+----
+0	/v1/customers/cus_ada/tax_ids,/v1/customers/cus_grace/tax_ids,/v1/customers/cus_radia/tax_ids
+
+# A required parent query parameter (financial_account) fans out the same way.
+statement ok
+SET VARIABLE mark = mark_now();
+
+query I
+SELECT count(*) FROM stripe.treasury.transactions(financial_account_id := 'fa_gentrefinanci1');
+----
+2
+
+query T
+SELECT q->>'financial_account' FROM reqs('/v1/treasury/transactions');
+----
+fa_gentrefinanci1
+
+# Sub-objects: one GET per parent; a parent without one (404) is skipped.
+query II
+SELECT customer, id FROM stripe.billing.customer_discounts();
+----
+cus_ada	di_genbilcustome0
+
+# Parent-derived child parameters: each Financial Connections account's ownership id.
+query I
+SELECT count(*) FROM stripe.financial_connections.account_owners();
+----
+4
+
+# No list to fan out over: the id is required.
+statement error
+SELECT * FROM stripe.tax.calculation_line_items();
+----
+<REGEX>:.*calculation_id := .*
+
+query I
+SELECT count(*) FROM stripe.tax.calculation_line_items() WHERE calculation = 'taxcalc_gentaxcalcula0';
+----
+2
+
+# Retrieve-only objects by id.
+query I
+SELECT count(*) FROM stripe.financial_connections.sessions() WHERE id IN ('fcsess_genfinsession0', 'fcsess_missing');
+----
+1
+
+# ------------------------------------------------------------ redaction
+
+# Every credential field the spec documents is redacted everywhere, raw included; never a column.
+query I
+SELECT count(*) FROM (DESCRIBE SELECT * FROM stripe.payments.setup_intents()) WHERE column_name IN ('client_secret', 'secret');
+----
+0
+
+query II
+SELECT count(*), count(*) FILTER (WHERE raw::VARCHAR LIKE '%SECRET_LEAK_SENTINEL%') FROM stripe.payments.setup_intents();
+----
+4	0
+
+query T
+SELECT DISTINCT raw->>'client_secret' FROM stripe.payments.setup_intents();
+----
+[redacted]
+
+query I
+SELECT count(*) FILTER (WHERE raw::VARCHAR LIKE '%SECRET_LEAK_SENTINEL%') FROM stripe.identity.verification_sessions();
+----
+0
+
+query I
+SELECT count(*) FILTER (WHERE raw::VARCHAR LIKE '%SECRET_LEAK_SENTINEL%') FROM stripe.financial_connections.sessions(session_id := 'fcsess_genfinsession0');
+----
+0
+
+# Apps secrets: names and metadata only, never the payload.
+query II
+SELECT name, raw->>'payload' FROM stripe.platform.app_secrets() ORDER BY name LIMIT 1;
+----
+vgi-secret-0	[redacted]
+
+query I
+SELECT count(*) FROM (DESCRIBE SELECT * FROM stripe.platform.app_secrets()) WHERE column_name = 'payload';
+----
+0
+
+# File links are public, unauthenticated download URLs: redacted.
+query II
+SELECT count(*), count(*) FILTER (WHERE raw->>'url' = '[redacted]') FROM stripe.platform.file_links();
+----
+4	4
+
+# The raw escape hatch redacts too.
+query I
+SELECT body::VARCHAR LIKE '%SECRET_LEAK_SENTINEL%' FROM stripe.api.get('/v1/setup_intents/seti_genpaysetupin0');
+----
+false
+
+# ------------------------------------------------------------ api.get
+
+query II
+SELECT object, body->>'$.id' FROM stripe.api.get('/v1/charges/ch_1');
+----
+charge	ch_1
+
+statement ok
+SET VARIABLE mark = mark_now();
+
+query I
+SELECT body->>'$.customer.id' FROM stripe.api.get('/v1/charges/ch_1', params := MAP {'expand[]': 'customer'});
+----
+cus_ada
+
+query T
+SELECT q->>'expand[]' FROM reqs('/v1/charges/ch_1');
+----
+customer
+
+# Writes and undocumented paths are refused before any request.
+statement error
+SELECT * FROM stripe.api.get('/v1/charges/ch_1/capture');
+----
+<REGEX>:.*not a documented Stripe GET endpoint.*
+
+statement error
+SELECT * FROM stripe.api.get('/v2/core/events');
+----
+<REGEX>:.*
+
+statement error
+SELECT * FROM stripe.api.get('/v1/quotes/qt_1/pdf');
+----
+<REGEX>:.*not a documented Stripe GET endpoint.*
+
+# ------------------------------------------------------------ products not enabled
+
+statement ok
+DROP SECRET stripe_fixture;
+
+statement ok
+CREATE SECRET stripe_basic (TYPE stripe, API_KEY 'rk_test_basic', BASE_URL '{STRIPE_FIXTURE_URL}');
+
+statement error
+SELECT * FROM stripe.issuing.cards();
+----
+<REGEX>:.*issuing is not enabled on this Stripe account.*
+
+statement error
+SELECT * FROM stripe.treasury.financial_accounts();
+----
+<REGEX>:.*treasury is not enabled on this Stripe account.*
+
+statement ok
+DROP SECRET stripe_basic;

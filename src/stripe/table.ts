@@ -407,7 +407,8 @@ function searchExpressible<A>(spec: StripeTableSpec<A>, c: Constraint): boolean 
 export function planRequests<A extends CommonArgs>(spec: StripeTableSpec<A>, scan: ScanContext<A>): PhaseRequest[] {
   const path = typeof spec.path === "string" ? spec.path : spec.path(scan);
   if (spec.single) return [{ path, query: spec.baseQuery?.(scan) ?? {}, mode: "object" }];
-  if (spec.retrieve && !scan.args.search?.trim()) {
+  // Retrieve by id, unless the list endpoint itself takes ids (`ids[]`: one request for all of them).
+  if (spec.retrieve && !spec.params?.id && !scan.args.search?.trim()) {
     const ids = eqValues(scan.constraints, "id");
     if (ids && ids.length <= MAX_IN_PHASES) {
       const tpl = spec.retrieve;

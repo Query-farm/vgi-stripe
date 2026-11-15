@@ -551,7 +551,7 @@ export function defineEndpoint(ep: EndpointDesc, version: string): VgiFunction {
 // ------------------------------------------------------------------ api.get
 
 const GET_PATTERNS = GENERATED.get_paths.map(
-  (p) => new RegExp(`^${p.replace(/[.*+?^$()|[\]\\]/g, "\\$&").replace(/\{\w+\}/g, "[A-Za-z0-9_.:-]+")}$`),
+  (p) => new RegExp(`^${p.replace(/[.*+?^$()|[\]\\]/g, "\\$&").replace(/\{\w+\}/g, "(?!\\.+(?:/|$))[A-Za-z0-9_.:-]+")}$`),
 );
 
 /** Whether `path` is a documented Stripe GET (a spec template with its ids filled in). */

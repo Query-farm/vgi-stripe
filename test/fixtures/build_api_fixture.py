@@ -38,7 +38,7 @@ GEN = json.loads((ROOT / "src/stripe/generated/endpoints.json").read_text())
 CURATED = json.loads((ROOT / "test/fixtures/stripe-account.json").read_text())
 SCHEMAS = SPEC["components"]["schemas"]
 
-T0 = 1761955200  # 2026-11-01T00:00:00Z
+T0 = 1793491200  # 2026-11-01T00:00:00Z
 DAY = 86400
 SENTINEL = "SECRET_LEAK_SENTINEL"
 SECRET_FIELDS = {"client_secret", "secret", "password", "private_key_file", "private_key_file_password",
