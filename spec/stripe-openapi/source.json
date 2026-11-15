@@ -1,0 +1,18 @@
+{
+  "source": "https://github.com/stripe/openapi",
+  "license": "MIT (see LICENSE, Copyright (c) 2011- Stripe, Inc.)",
+  "commit": "a045100cf4af0acb548cb9c6f236bb117f83458f",
+  "commit_date": "2026-11-12T22:04:05Z",
+  "api_version": "2026-09-30.endive",
+  "files": {
+    "spec3.json": {
+      "upstream_path": "openapi/spec3.json",
+      "sha256": "7cff4cc46d0654101a36a3302f7544640f5f73e4f3cad6f264f0e23c19fa1776"
+    },
+    "fixtures3.json": {
+      "upstream_path": "openapi/fixtures3.json",
+      "sha256": "c94c6c106a8743e559609792d2591c9b975e5588b4ea70425ce9377c1c6d0026"
+    }
+  },
+  "refresh": "curl -fsSL -o spec/stripe-openapi/<file> https://raw.githubusercontent.com/stripe/openapi/<commit>/openapi/<file>; update commit/sha256 here; then `make generate`"
+}
