@@ -1,0 +1,381 @@
+# name: test/sql/pushdown.test
+# description: What the stripe worker sends to Stripe: list parameters, Search queries, expansion, paging and retries (asserted on the replay server's request log)
+# group: [stripe]
+
+require vgi
+
+require-env STRIPE_WORKER
+
+require-env STRIPE_FIXTURE_URL
+
+# httpfs + json read the replay server's /__requests log.
+statement ok
+LOAD httpfs;
+
+statement ok
+LOAD json;
+
+statement ok
+ATTACH 'stripe' (TYPE vgi, LOCATION '{STRIPE_WORKER}');
+
+statement ok
+CREATE SECRET stripe_fixture (TYPE stripe, API_KEY 'rk_test_fixture', BASE_URL '{STRIPE_FIXTURE_URL}', API_VERSION '2025-03-31.basil');
+
+# Only this file's requests count: the log is shared with the other test files of the run.
+statement ok
+CREATE MACRO log_rows(u) AS TABLE SELECT * FROM read_json(u, columns = {seq: 'BIGINT', path: 'VARCHAR', query: 'VARCHAR', auth: 'VARCHAR', account: 'VARCHAR', version: 'VARCHAR'});
+
+statement ok
+SET VARIABLE mark = (SELECT coalesce(max(seq), 0) FROM log_rows('{STRIPE_FIXTURE_URL}/__requests'));
+
+statement ok
+CREATE MACRO reqs(p) AS TABLE SELECT seq, query::JSON AS q, auth, account, version FROM log_rows('{STRIPE_FIXTURE_URL}/__requests?path=' || p) WHERE seq > getvariable('mark');
+
+# ------------------------------------------------------------ time ranges
+
+# created bounds become whole-second created[gte]/created[lte] (> / < tightened exactly).
+query I
+SELECT count(*) FROM stripe.main.charges() WHERE created > TIMESTAMPTZ '2026-11-03 00:00:00+00' AND created < TIMESTAMPTZ '2026-11-06 00:00:00+00';
+----
+3
+
+query TT
+SELECT q->>'created[gte]', q->>'created[lte]' FROM reqs('/v1/charges') WHERE q->>'created[gte]' = '1793664001';
+----
+1793664001	1793923199
+
+# Every request carries the pinned API version and the restricted key, never a Stripe-Account.
+query I
+SELECT count(*) FROM reqs('/v1/charges') WHERE version <> '2025-03-31.basil' OR auth <> 'rk_test_' OR account IS NOT NULL;
+----
+0
+
+query T
+SELECT id FROM stripe.main.payouts() WHERE arrival_date >= TIMESTAMPTZ '2026-11-09 00:00:00+00' AND status = 'failed';
+----
+po_3
+
+query I
+SELECT count(*) >= 1 FROM reqs('/v1/payouts') WHERE q->>'arrival_date[gte]' = '1794182400' AND q->>'status' = 'failed';
+----
+true
+
+# A contradictory range sends nothing at all.
+query I
+SELECT count(*) FROM stripe.main.refunds() WHERE created > TIMESTAMPTZ '2026-11-05 00:00:00+00' AND created < TIMESTAMPTZ '2026-11-04 00:00:00+00';
+----
+0
+
+query I
+SELECT count(*) FROM reqs('/v1/refunds');
+----
+0
+
+# invoice_items: date → created[…].
+query T
+SELECT id FROM stripe.main.invoice_items() WHERE date >= TIMESTAMPTZ '2026-11-06 00:00:00+00' ORDER BY id;
+----
+ii_2
+ii_4
+
+query I
+SELECT count(*) FROM reqs('/v1/invoiceitems') WHERE q->>'created[gte]' = '1793923200';
+----
+1
+
+# ------------------------------------------------------ equality / IN / booleans
+
+# IN on a scalar parameter: one request per value.
+query T
+SELECT id FROM stripe.main.charges() WHERE customer IN ('cus_alan', 'cus_kat') ORDER BY id;
+----
+ch_4
+ch_5
+
+query T
+SELECT q->>'customer' FROM reqs('/v1/charges') WHERE q->>'customer' IS NOT NULL ORDER BY 1;
+----
+cus_alan
+cus_kat
+
+# An enum value Stripe does not have matches nothing and is not sent.
+query I
+SELECT count(*) FROM stripe.main.invoices() WHERE status = 'bogus';
+----
+0
+
+query I
+SELECT count(*) FROM reqs('/v1/invoices') WHERE q->>'status' = 'bogus';
+----
+0
+
+query T
+SELECT id FROM stripe.main.invoices() WHERE status = 'open' AND customer = 'cus_grace';
+----
+in_2
+
+query I
+SELECT count(*) FROM reqs('/v1/invoices') WHERE q->>'status' = 'open' AND q->>'customer' = 'cus_grace';
+----
+1
+
+# Subscriptions default to status=all; a pushed status replaces it.
+query I
+SELECT count(*) FROM stripe.main.subscriptions() WHERE status = 'canceled';
+----
+1
+
+query I
+SELECT count(*) FROM reqs('/v1/subscriptions') WHERE q->>'status' = 'canceled';
+----
+1
+
+query I
+SELECT count(*) FROM stripe.main.subscriptions();
+----
+6
+
+# Six subscriptions at three per page: two requests.
+query I
+SELECT count(*) FROM reqs('/v1/subscriptions') WHERE q->>'status' = 'all';
+----
+2
+
+# Booleans: WHERE active / NOT active.
+query T
+SELECT id FROM stripe.main.tax_rates() WHERE NOT active;
+----
+txr_de_old
+
+query I
+SELECT count(*) FROM reqs('/v1/tax_rates') WHERE q->>'active' = 'false';
+----
+1
+
+# Array parameters: ids[], lookup_keys[], types[]; nested: recurring[interval], customer_details[email].
+query I
+SELECT count(*) FROM stripe.main.products() WHERE id IN ('prod_pro', 'prod_api');
+----
+2
+
+query T
+SELECT q->>'ids[]' FROM reqs('/v1/products') WHERE q->>'ids[]' IS NOT NULL;
+----
+["prod_api","prod_pro"]
+
+query I
+SELECT count(*) FROM stripe.main.prices() WHERE lookup_key = 'pro_yearly' AND recurring_interval = 'year';
+----
+1
+
+query TT
+SELECT q->>'lookup_keys[]', q->>'recurring[interval]' FROM reqs('/v1/prices') WHERE q->>'recurring[interval]' IS NOT NULL;
+----
+pro_yearly	year
+
+query I
+SELECT count(*) FROM stripe.main.events() WHERE type IN ('payout.paid', 'payout.failed');
+----
+2
+
+query T
+SELECT q->>'types[]' FROM reqs('/v1/events') WHERE q->>'types[]' IS NOT NULL;
+----
+["payout.failed","payout.paid"]
+
+query I
+SELECT count(*) FROM stripe.main.events() WHERE starts_with(type, 'charge.dispute.');
+----
+2
+
+query I
+SELECT count(*) FROM reqs('/v1/events') WHERE q->>'type' = 'charge.dispute.*';
+----
+1
+
+query I
+SELECT count(*) FROM stripe.main.checkout_sessions() WHERE customer_email = 'ada@example.com';
+----
+1
+
+query I
+SELECT count(*) FROM reqs('/v1/checkout/sessions') WHERE q->>'customer_details[email]' = 'ada@example.com';
+----
+1
+
+query T
+SELECT id FROM stripe.main.balance_transactions() WHERE source = 'ch_4';
+----
+txn_ch_4
+
+query I
+SELECT count(*) FROM reqs('/v1/balance_transactions') WHERE q->>'source' = 'ch_4';
+----
+1
+
+# ------------------------------------------------------------------ Search API
+
+# status / amount / currency are search-only for charges: one Search query, created included.
+query T
+SELECT id FROM stripe.main.charges() WHERE status = 'succeeded' AND amount >= 3000 AND currency = 'gbp' AND created >= TIMESTAMPTZ '2026-11-01 00:00:00+00';
+----
+ch_6
+
+query T
+SELECT q->>'query' FROM reqs('/v1/charges/search') WHERE q->>'query' LIKE '%amount>=3000%';
+----
+status:"succeeded" AND amount>=3000 AND currency:"gbp" AND created>=1793491200
+
+# A list-only filter (payment_intent) keeps the strongly consistent list API.
+query T
+SELECT id FROM stripe.main.charges() WHERE payment_intent = 'pi_9' AND status = 'failed';
+----
+ch_9
+
+query I
+SELECT count(*) FROM reqs('/v1/charges') WHERE q->>'payment_intent' = 'pi_9';
+----
+1
+
+# IN on a search field: one Search query per value (Search cannot mix OR with AND).
+query T
+SELECT id FROM stripe.main.payment_intents() WHERE status IN ('processing', 'canceled') ORDER BY id;
+----
+pi_11
+pi_7
+
+query T
+SELECT q->>'query' FROM reqs('/v1/payment_intents/search') ORDER BY 1;
+----
+status:"canceled"
+status:"processing"
+
+# Values are quoted with backslash escapes.
+query I
+SELECT count(*) FROM stripe.main.customers() WHERE name = 'O"Brien \ Co';
+----
+0
+
+query T
+SELECT q->>'query' FROM reqs('/v1/customers/search') WHERE q->>'query' LIKE 'name:%';
+----
+name:"O\"Brien \\ Co"
+
+# Substring (~) needs 3+ characters; shorter prefixes stay local.
+query T
+SELECT id FROM stripe.main.customers() WHERE starts_with(name, 'Ka');
+----
+cus_kat
+
+query I
+SELECT count(*) FROM reqs('/v1/customers/search') WHERE q->>'query' LIKE '%Ka"%';
+----
+0
+
+# A raw search := query is ANDed with pushed filters ...
+query T
+SELECT id FROM stripe.main.subscriptions(search := 'metadata["source"]:"web"') WHERE status = 'past_due';
+----
+sub_kat
+
+query T
+SELECT q->>'query' FROM reqs('/v1/subscriptions/search');
+----
+metadata["source"]:"web" AND status:"past_due"
+
+# ... unless it uses OR (no parentheses in Stripe Search): then it is sent alone.
+query T
+SELECT id FROM stripe.main.invoices(search := 'number:"ADA-0001" OR number:"KAT-0001"') WHERE status = 'paid';
+----
+in_1
+
+query T
+SELECT q->>'query' FROM reqs('/v1/invoices/search') WHERE q->>'query' LIKE '%OR%';
+----
+number:"ADA-0001" OR number:"KAT-0001"
+
+# Search pages with next_page tokens (pages hold 3 objects here).
+query I
+SELECT count(*) FROM stripe.main.customers(search := 'created>0');
+----
+6
+
+query I
+SELECT count(*) FROM reqs('/v1/customers/search') WHERE q->>'query' = 'created>0' AND q->>'page' IS NOT NULL;
+----
+1
+
+# --------------------------------------------------------- expansion / paging
+
+# Projecting fee expands data.balance_transaction; other projections do not.
+query I
+SELECT count(*) FROM stripe.main.refunds() WHERE charge = 're_none';
+----
+0
+
+query I
+SELECT count(*) FROM reqs('/v1/refunds') WHERE q->>'expand[]' IS NOT NULL;
+----
+0
+
+query T
+SELECT id FROM stripe.main.refunds() WHERE charge = 'ch_2' AND fee = 0;
+----
+re_1
+
+query T
+SELECT q->>'expand[]' FROM reqs('/v1/refunds') WHERE q->>'charge' = 'ch_2';
+----
+data.balance_transaction
+
+# Cursors: 38 events at three per page are 13 requests, each after the previous page's last id.
+query I
+SELECT count(*) FROM stripe.main.events() WHERE created >= TIMESTAMPTZ '2026-10-01 00:00:00+00';
+----
+38
+
+query I
+SELECT count(*) FROM reqs('/v1/events') WHERE q->>'created[gte]' = '1790812800';
+----
+13
+
+# Fan-out: embedded children are used; only parents with has_more get an extra call.
+query I
+SELECT count(*) FROM stripe.main.invoice_line_items();
+----
+10
+
+query T
+SELECT q->>'starting_after' FROM reqs('/v1/invoices/in_6/lines') ORDER BY seq;
+----
+NULL
+il_9
+
+query I
+SELECT count(*) FROM log_rows('{STRIPE_FIXTURE_URL}/__requests') WHERE seq > getvariable('mark') AND path LIKE '/v1/invoices/in_%/lines' AND path <> '/v1/invoices/in_6/lines';
+----
+0
+
+query I
+SELECT count(*) FROM stripe.main.subscription_items() WHERE subscription_id = 'sub_ada';
+----
+1
+
+query T
+SELECT q->>'subscription' FROM reqs('/v1/subscription_items') ORDER BY seq;
+----
+sub_ada
+
+# --------------------------------------------------------------------- retries
+
+# The first /v1/disputes call is a 429 and the first /v1/payouts call (made above) a 500,
+# both with Stripe-Should-Retry: true; the worker backed off and retried.
+query I
+SELECT count(*) FROM stripe.main.disputes();
+----
+2
+
+query I
+SELECT count(*) >= 1 FROM log_rows('{STRIPE_FIXTURE_URL}/__requests?path=/v1/disputes') WHERE seq <= (SELECT max(seq) FROM log_rows('{STRIPE_FIXTURE_URL}/__requests?path=/v1/disputes')) - 1;
+----
+true

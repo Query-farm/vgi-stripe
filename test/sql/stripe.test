@@ -1,148 +1,627 @@
 # name: test/sql/stripe.test
-# description: SQL-level tests for the stripe worker, run through DuckDB by ci/run-integration.sh
+# description: SQL tests for the stripe worker against the offline Stripe replay server (test/mock_api/server.py)
 # group: [stripe]
-# managed-by: vgi-starters (edit upstream in shared/, then run tools/render.py)
 
 require vgi
 
 require-env STRIPE_WORKER
 
-require-env STRIPE_MOCK_API
+require-env STRIPE_FIXTURE_URL
 
-require-env STRIPE_MOCK_API_AUTH
+# json reads the raw JSON column.
+statement ok
+LOAD json;
 
 statement ok
 ATTACH 'stripe' (TYPE vgi, LOCATION '{STRIPE_WORKER}');
 
-# ---------------------------------------------------------------- greet (scalar)
+# ---------------------------------------------------------------- secret errors
 
-query T
-SELECT stripe.main.greet('Ada');
-----
-Hi, Ada!
-
-query T
-SELECT stripe.main.greet('Ada', 'formal');
-----
-Good day, Ada.
-
-# NULL in, NULL out.
-query T
-SELECT stripe.main.greet(NULL);
-----
-NULL
-
-# Works over a whole column, one result per row.
-query T
-SELECT stripe.main.greet(name) FROM (VALUES ('Ada'), ('Grace'), (NULL)) AS t(name) ORDER BY ALL NULLS LAST;
-----
-Hi, Ada!
-Hi, Grace!
-NULL
-
-# `style` is constrained to 'casual' | 'formal' and checked when the query is bound.
-# (No expected message: each SDK words constraint errors its own way.)
 statement error
-SELECT stripe.main.greet('Ada', 'loud');
+SELECT count(*) FROM stripe.main.charges();
 ----
-<REGEX>:.*
+<REGEX>:.*no stripe secret.*
 
-# ------------------------------------------------------ sequence_table (table fn)
+statement ok
+CREATE SECRET stripe_bad (TYPE stripe, API_KEY 'rk_test_wrong', BASE_URL '{STRIPE_FIXTURE_URL}');
 
-query II
-SELECT n, squared FROM stripe.main.sequence_table(4) ORDER BY n;
-----
-0	0
-1	1
-2	4
-3	9
-
-# Named argument with a default.
-query I
-SELECT n FROM stripe.main.sequence_table(3, step := 5) ORDER BY n;
-----
-0
-5
-10
-
-# Larger than one batch: the cursor must carry across process calls.
-query II
-SELECT count(*), max(n) FROM stripe.main.sequence_table(25000);
-----
-25000	24999
-
-query I
-SELECT count(*) FROM stripe.main.sequence_table(0);
-----
-0
-
-# count is constrained to [0, 1000000].
 statement error
-SELECT * FROM stripe.main.sequence_table(-1);
+SELECT count(*) FROM stripe.main.charges();
 ----
-<REGEX>:.*
+<REGEX>:.*HTTP 401.*Invalid API Key.*
 
-# Named arguments are constrained too: step >= 1.
+statement ok
+DROP SECRET stripe_bad;
+
+statement ok
+CREATE SECRET stripe_pk (TYPE stripe, API_KEY 'pk_test_publishable', BASE_URL '{STRIPE_FIXTURE_URL}');
+
 statement error
-SELECT * FROM stripe.main.sequence_table(3, step := 0);
+SELECT count(*) FROM stripe.main.charges();
 ----
-<REGEX>:.*
+<REGEX>:.*publishable key.*
 
-# ------------------------------------------------- fetch_items (REST table fn)
+statement ok
+DROP SECRET stripe_pk;
 
-query IIT
-SELECT count(*), sum(id), min(name) FROM stripe.main.fetch_items('{STRIPE_MOCK_API}', page_size := 4);
+statement ok
+CREATE SECRET stripe_insecure (TYPE stripe, API_KEY 'rk_test_fixture', BASE_URL 'http://api.example.com');
+
+statement error
+SELECT count(*) FROM stripe.main.charges();
 ----
-25	325	item-01
+<REGEX>:.*https.*
+
+statement ok
+DROP SECRET stripe_insecure;
+
+statement ok
+CREATE SECRET stripe_badver (TYPE stripe, API_KEY 'rk_test_fixture', BASE_URL '{STRIPE_FIXTURE_URL}', API_VERSION 'latest');
+
+statement error
+SELECT count(*) FROM stripe.main.charges();
+----
+<REGEX>:.*api_version.*
+
+statement ok
+DROP SECRET stripe_badver;
+
+# A restricted key without the payouts permission: Stripe's 403 surfaces.
+statement ok
+CREATE SECRET stripe_limited (TYPE stripe, API_KEY 'rk_test_nopayouts', BASE_URL '{STRIPE_FIXTURE_URL}');
+
+statement error
+SELECT count(*) FROM stripe.main.payouts();
+----
+<REGEX>:.*HTTP 403.*permission.*
+
+statement ok
+DROP SECRET stripe_limited;
+
+statement ok
+CREATE SECRET stripe_fixture (TYPE stripe, API_KEY 'rk_test_fixture', BASE_URL '{STRIPE_FIXTURE_URL}');
+
+# -------------------------------------------------------------------- balance
+
+query TTII
+SELECT bucket, currency, amount, source_card FROM stripe.main.balance() ORDER BY bucket, currency;
+----
+available	gbp	6789	6789
+available	jpy	3000	3000
+available	kwd	1500	1500
+available	usd	12345	12000
+connect_reserved	usd	0	NULL
+pending	eur	4200	4200
+pending	usd	2500	2500
+
+# Exact major units per Stripe's exponent: JPY has none, KWD three, USD two.
+query TT
+SELECT currency, amount_decimal::VARCHAR FROM stripe.main.balance() WHERE bucket = 'available' ORDER BY currency;
+----
+gbp	67.890
+jpy	3000.000
+kwd	1.500
+usd	123.450
+
+# ------------------------------------------------------------ balance ledger
+
+query TTIIIT
+SELECT id, type, amount, fee, net, currency FROM stripe.main.balance_transactions(payout := 'po_1') ORDER BY id;
+----
+txn_ch_2	charge	5000	175	4825	usd
+txn_po_1	payout	-3200	0	-3200	usd
+txn_re_1	refund	-1500	0	-1500	usd
 
 query TI
-SELECT category, count(*) FROM stripe.main.fetch_items('{STRIPE_MOCK_API}') GROUP BY category ORDER BY category;
+SELECT type, count(*) FROM stripe.main.balance_transactions() GROUP BY type ORDER BY type;
 ----
-hardware	8
-service	8
-software	9
+charge	8
+payout	3
+refund	3
+stripe_fee	1
+transfer	1
 
-# The harness runs STRIPE_MOCK_API with MOCK_API_FLAKY=1: every page answers
-# 429 + Retry-After once, so every query above also exercised the retry path.
+# available_on has no list parameter: filtered locally, still exact.
+query T
+SELECT id FROM stripe.main.balance_transactions() WHERE type = 'charge' AND available_on >= TIMESTAMPTZ '2026-11-09 00:00:00+00' ORDER BY id;
+----
+txn_ch_10
+txn_ch_7
+txn_ch_8
 
-# STRIPE_MOCK_API_AUTH requires a bearer token ('test-token'). Every language's
-# fetch_items must put the HTTP status code in its error message.
+query TTT
+SELECT id, status, arrival_date::VARCHAR FROM stripe.main.payouts() ORDER BY id;
+----
+po_1	paid	2026-11-06 00:00:00+00
+po_2	in_transit	2026-11-10 00:00:00+00
+po_3	failed	2026-11-09 00:00:00+00
+
+query TT
+SELECT id, failure_code FROM stripe.main.payouts() WHERE status = 'failed';
+----
+po_3	account_closed
+
+# ------------------------------------------------------------------- charges
+
+query TTITTT
+SELECT id, status, amount, currency, customer, card_brand FROM stripe.main.charges() ORDER BY id;
+----
+ch_1	succeeded	2000	gbp	cus_ada	visa
+ch_10	succeeded	2000	usd	cus_ada	visa
+ch_2	succeeded	5000	usd	cus_grace	mastercard
+ch_3	failed	1200	usd	cus_grace	mastercard
+ch_4	succeeded	3000	jpy	cus_alan	jcb
+ch_5	succeeded	1500	kwd	cus_kat	visa
+ch_6	succeeded	9900	gbp	cus_ada	visa
+ch_7	pending	2500	usd	cus_margaret	visa
+ch_8	succeeded	4200	eur	cus_radia	NULL
+ch_9	failed	700	usd	cus_grace	mastercard
+
+query TT
+SELECT currency, sum(amount_decimal)::VARCHAR FROM stripe.main.charges() WHERE status = 'succeeded' GROUP BY currency ORDER BY currency;
+----
+eur	42.000
+gbp	119.000
+jpy	3000.000
+kwd	1.500
+usd	70.000
+
+query TTT
+SELECT id, failure_code, outcome_type FROM stripe.main.charges() WHERE status = 'failed' ORDER BY id;
+----
+ch_3	card_declined	issuer_declined
+ch_9	expired_card	issuer_declined
+
+# fee / net come from the expanded balance transaction (only when projected).
+query TIITT
+SELECT id, fee, net, net_decimal::VARCHAR, available_on::VARCHAR FROM stripe.main.charges() WHERE customer = 'cus_ada' ORDER BY id;
+----
+ch_1	88	1912	19.120	2026-11-04 00:00:00+00
+ch_10	88	1912	19.120	2026-11-11 00:00:00+00
+ch_6	317	9583	95.830	2026-11-08 00:00:00+00
+
+query TIT
+SELECT id, amount_refunded, refunded FROM stripe.main.charges() WHERE amount_refunded > 0 ORDER BY id;
+----
+ch_2	1500	false
+ch_6	9900	true
+ch_8	1000	false
+
+query T
+SELECT id FROM stripe.main.charges() WHERE disputed ORDER BY id;
+----
+ch_2
+ch_5
+
+query T
+SELECT id FROM stripe.main.charges() WHERE card_last4 = '4444' ORDER BY id;
+----
+ch_2
+ch_3
+ch_9
+
+# A raw Stripe Search query (metadata).
+query T
+SELECT id FROM stripe.main.charges(search := 'metadata["order_id"]:"6735"');
+----
+ch_8
+
+# Raw expand paths land in the raw JSON column.
+query TT
+SELECT id, raw->>'$.customer.email' FROM stripe.main.charges(expand := ['customer']) WHERE id = 'ch_4';
+----
+ch_4	alan@example.com
+
 statement error
-SELECT count(*) FROM stripe.main.fetch_items('{STRIPE_MOCK_API_AUTH}');
+SELECT id FROM stripe.main.charges(expand := ['Customer; DROP']);
 ----
-401
+<REGEX>:.*not an expandable field path.*
 
-statement ok
-CREATE SECRET stripe_api_test (TYPE stripe_api, TOKEN 'test-token');
+# ----------------------------------------------------------- payment intents
+
+query TTT
+SELECT id, status, last_payment_error_code FROM stripe.main.payment_intents() WHERE status <> 'succeeded' ORDER BY id;
+----
+pi_11	canceled	NULL
+pi_3	requires_payment_method	card_declined
+pi_7	processing	NULL
+pi_9	requires_payment_method	expired_card
+
+# client_secret never leaves the worker.
+query I
+SELECT count(*) FROM stripe.main.payment_intents() WHERE raw::VARCHAR LIKE '%doNotLeak%';
+----
+0
+
+query T
+SELECT raw->>'$.client_secret' FROM stripe.main.payment_intents() WHERE id = 'pi_11';
+----
+[redacted]
+
+query TTT
+SELECT id, reason, status FROM stripe.main.refunds() ORDER BY id;
+----
+re_1	requested_by_customer	succeeded
+re_2	duplicate	succeeded
+re_3	fraudulent	pending
+
+query TTT
+SELECT id, status, evidence_due_by::VARCHAR FROM stripe.main.disputes() WHERE status IN ('needs_response', 'warning_needs_response') ORDER BY id;
+----
+dp_1	needs_response	2026-11-21 00:00:00+00
+
+query TTT
+SELECT id, fraud_type, actionable FROM stripe.main.early_fraud_warnings() ORDER BY id;
+----
+issfr_1	made_with_stolen_card	true
+issfr_2	unauthorized_use_of_card	false
+
+query TTTT
+SELECT id, status, customer_email, amount_total_decimal::VARCHAR FROM stripe.main.checkout_sessions() WHERE customer_email = 'grace@example.com' ORDER BY id;
+----
+cs_2	expired	grace@example.com	59.000
+cs_4	complete	grace@example.com	15.000
 
 query I
-SELECT count(*) FROM stripe.main.fetch_items('{STRIPE_MOCK_API_AUTH}', page_size := 25);
+SELECT count(*) FROM stripe.main.checkout_sessions() WHERE raw::VARCHAR LIKE '%doNotLeak%';
 ----
-25
+0
 
-# Several pages: the token must survive between batches (over HTTP each batch is a
-# separate request, so a token kept only in memory is lost after page 1).
-query I
-SELECT count(*) FROM stripe.main.fetch_items('{STRIPE_MOCK_API_AUTH}', page_size := 7);
+# ------------------------------------------------------------------ customers
+
+query TTTT
+SELECT id, email, name, address_country FROM stripe.main.customers() ORDER BY id;
 ----
-25
+cus_ada	ada@example.com	Ada Lovelace	GB
+cus_alan	alan@example.com	Alan Turing	JP
+cus_grace	grace@example.com	Grace Hopper	US
+cus_kat	kat@example.com	Katherine Johnson	KW
+cus_margaret	Margaret@Example.com	Margaret Hamilton	US
+cus_radia	NULL	Radia Perlman	DE
+
+# Email equality is exact and case-sensitive, like SQL.
+query T
+SELECT id FROM stripe.main.customers() WHERE email = 'margaret@example.com';
+----
+
+query T
+SELECT id FROM stripe.main.customers() WHERE email = 'Margaret@Example.com';
+----
+cus_margaret
+
+# contains() goes to Search as a case-insensitive substring and is re-checked exactly.
+query T
+SELECT id FROM stripe.main.customers() WHERE contains(email, 'example.com') ORDER BY id;
+----
+cus_ada
+cus_alan
+cus_grace
+cus_kat
+
+query TT
+SELECT id, metadata['plan'] FROM stripe.main.customers() WHERE starts_with(name, 'Ada');
+----
+cus_ada	pro
+
+query TT
+SELECT id, balance_decimal::VARCHAR FROM stripe.main.customers() WHERE delinquent OR balance <> 0 ORDER BY id;
+----
+cus_ada	-5.000
+cus_kat	0.000
+
+# Payment methods: fan out over customers, or read one customer.
+query TTTII
+SELECT id, customer, card_brand, card_exp_month, card_exp_year FROM stripe.main.payment_methods() WHERE type = 'card' ORDER BY id;
+----
+pm_ada_amex	cus_ada	amex	3	2026
+pm_ada_visa	cus_ada	visa	12	2027
+pm_alan_jcb	cus_alan	jcb	1	2028
+pm_grace_mc	cus_grace	mastercard	8	2026
+pm_kat_visa	cus_kat	visa	6	2029
+pm_margaret_visa	cus_margaret	visa	9	2025
+
+query TT
+SELECT id, card_wallet FROM stripe.main.payment_methods(customer_id := 'cus_ada') ORDER BY id;
+----
+pm_ada_amex	NULL
+pm_ada_visa	apple_pay
+
+query TT
+SELECT id, type FROM stripe.main.payment_methods() WHERE customer IN ('cus_radia', 'cus_alan') ORDER BY id;
+----
+pm_alan_jcb	card
+pm_radia_sepa	sepa_debit
+
+# --------------------------------------------------------------------- billing
+
+query TTTTT
+SELECT id, number, status, subscription, amount_remaining_decimal::VARCHAR FROM stripe.main.invoices() ORDER BY id;
+----
+in_1	ADA-0001	paid	sub_ada	0.000
+in_2	GRA-0001	open	sub_grace	45.000
+in_3	KAT-0001	uncollectible	sub_kat	2.900
+in_4	NULL	draft	sub_alan	3000.000
+in_5	GRA-0002	void	NULL	0.000
+in_6	MAR-0001	open	sub_margaret	37.500
+
+query T
+SELECT id FROM stripe.main.invoices() WHERE number = 'GRA-0002';
+----
+in_5
+
+query T
+SELECT id FROM stripe.main.invoices() WHERE subscription = 'sub_margaret';
+----
+in_6
+
+# in_6 embeds 2 of its 4 lines (has_more): the rest come from /v1/invoices/in_6/lines.
+query TTTTTT
+SELECT invoice_id, id, price, product, unit_amount_decimal::VARCHAR, coalesce(subscription_item, invoice_item) FROM stripe.main.invoice_line_items() ORDER BY invoice_id, id;
+----
+in_1	il_1	price_pro_monthly	prod_pro	29.000000000000	si_ada_1
+in_2	il_2	price_basic_monthly	prod_basic	15.000000000000	si_grace_1
+in_2	il_3	NULL	NULL	30.000000000000	ii_1
+in_3	il_4	price_pro_monthly	prod_pro	2.900000000000	si_kat_1
+in_4	il_5	price_pro_jpy	prod_pro	3000.000000000000	si_alan_1
+in_5	il_6	price_basic_monthly	prod_basic	15.000000000000	NULL
+in_6	il_10	NULL	NULL	5.000000000000	ii_3
+in_6	il_7	price_basic_monthly	prod_basic	15.000000000000	si_margaret_1
+in_6	il_8	price_basic_monthly	prod_basic	15.000000000000	si_margaret_1
+in_6	il_9	price_api	prod_api	0.002500000000	si_margaret_2
+
+query TI
+SELECT id, quantity FROM stripe.main.invoice_line_items(invoice_id := 'in_6') ORDER BY id;
+----
+il_10	1
+il_7	1
+il_8	1
+il_9	1000
+
+query TTT
+SELECT id, customer, pending FROM stripe.main.invoice_items() WHERE pending ORDER BY id;
+----
+ii_2	cus_ada	true
+ii_4	cus_margaret	true
+
+# Every status, canceled included (status=all), unlike Stripe's default list.
+query TTTI
+SELECT id, status, current_period_end::VARCHAR, item_count FROM stripe.main.subscriptions() ORDER BY id;
+----
+sub_ada	active	2026-12-01 00:00:00+00	1
+sub_alan	canceled	2026-11-21 00:00:00+00	1
+sub_grace	trialing	2026-11-11 00:00:00+00	1
+sub_kat	past_due	2026-11-26 00:00:00+00	1
+sub_margaret	active	2026-11-29 00:00:00+00	2
+sub_radia	incomplete	2026-11-30 00:00:00+00	1
+
+query TT
+SELECT id, cancellation_reason FROM stripe.main.subscriptions() WHERE status = 'canceled';
+----
+sub_alan	cancellation_requested
+
+query I
+SELECT count(*) FROM stripe.main.subscriptions() WHERE status IN ('active', 'trialing');
+----
+3
+
+# sub_margaret embeds 1 of 2 items (has_more): the other comes from /v1/subscription_items.
+query TTTIT
+SELECT subscription_id, id, price, quantity, unit_amount_decimal::VARCHAR FROM stripe.main.subscription_items() ORDER BY id;
+----
+sub_ada	si_ada_1	price_pro_monthly	3	29.000
+sub_alan	si_alan_1	price_pro_jpy	1	3000.000
+sub_grace	si_grace_1	price_basic_monthly	1	15.000
+sub_kat	si_kat_1	price_pro_monthly	1	29.000
+sub_margaret	si_margaret_1	price_basic_monthly	2	15.000
+sub_margaret	si_margaret_2	price_api	NULL	NULL
+sub_radia	si_radia_1	price_basic_monthly	1	15.000
+
+query TT
+SELECT id, price FROM stripe.main.subscription_items(subscription_id := 'sub_margaret') ORDER BY id;
+----
+si_margaret_1	price_basic_monthly
+si_margaret_2	price_api
+
+query TTI
+SELECT id, status, phase_count FROM stripe.main.subscription_schedules() ORDER BY id;
+----
+sub_sched_1	active	2
+sub_sched_2	not_started	1
+
+query TTT
+SELECT id, reason, total_decimal::VARCHAR FROM stripe.main.credit_notes() WHERE status = 'issued';
+----
+cn_1	product_unsatisfactory	5.000
+
+query TTT
+SELECT id, event_name, aggregation_formula FROM stripe.main.billing_meters() ORDER BY id;
+----
+mtr_api_calls	api_call	sum
+mtr_legacy	storage_gb	last
+
+# (cast: the runner compares DOUBLEs only approximately)
+query TI
+SELECT start_time::VARCHAR, aggregated_value::BIGINT FROM stripe.main.meter_event_summaries('mtr_api_calls', 'cus_margaret', TIMESTAMPTZ '2026-11-01 00:00:00+00', TIMESTAMPTZ '2026-11-04 00:00:00+00', value_grouping_window := 'day') ORDER BY start_time;
+----
+2026-11-01 00:00:00+00	286
+2026-11-02 00:00:00+00	287
+2026-11-03 00:00:00+00	288
+
+query I
+SELECT aggregated_value::BIGINT FROM stripe.main.meter_event_summaries('mtr_api_calls', 'cus_ada', TIMESTAMPTZ '2026-11-01 00:00:00+00', TIMESTAMPTZ '2026-11-02 00:00:00+00');
+----
+16
+
+statement error
+SELECT * FROM stripe.main.meter_event_summaries('mtr_api_calls', 'cus_ada', TIMESTAMPTZ '2026-11-01 00:00:30+00', TIMESTAMPTZ '2026-11-02 00:00:00+00');
+----
+<REGEX>:.*HTTP 400.*aligned.*
+
+# ------------------------------------------------------------ product catalog
+
+query TT
+SELECT id, name FROM stripe.main.products() WHERE active ORDER BY id;
+----
+prod_api	API Calls
+prod_basic	Basic Plan
+prod_pro	Pro Plan
+
+# Search matches name case-insensitively; SQL equality is re-applied exactly.
+query T
+SELECT id FROM stripe.main.products() WHERE name = 'pro plan';
+----
+
+query T
+SELECT id FROM stripe.main.products() WHERE name = 'Pro Plan';
+----
+prod_pro
+
+query T
+SELECT id FROM stripe.main.products() WHERE id IN ('prod_legacy', 'prod_api') ORDER BY id;
+----
+prod_api
+prod_legacy
+
+query TTTT
+SELECT id, unit_amount_decimal::VARCHAR, unit_amount_precise::VARCHAR, recurring_usage_type FROM stripe.main.prices() WHERE recurring_interval = 'month' ORDER BY id;
+----
+price_api	NULL	0.002500000000	metered
+price_basic_monthly	15.000	15.000000000000	licensed
+price_pro_jpy	3000.000	3000.000000000000	licensed
+price_pro_monthly	29.000	29.000000000000	licensed
+
+query TT
+SELECT p.id, pr.name FROM stripe.main.prices() p JOIN stripe.main.products() pr ON pr.id = p.product WHERE p.lookup_key IN ('pro_yearly', 'basic_monthly') ORDER BY p.id;
+----
+price_basic_monthly	Basic Plan
+price_pro_yearly	Pro Plan
+
+query TTTT
+SELECT id, percent_off::VARCHAR, amount_off_decimal::VARCHAR, valid FROM stripe.main.coupons() ORDER BY id;
+----
+OLDPROMO	50.0	NULL	false
+SUMMER25	25.0	NULL	true
+WELCOME10	NULL	10.000	true
+
+query TTT
+SELECT code, coupon, minimum_amount_decimal::VARCHAR FROM stripe.main.promotion_codes() WHERE active ORDER BY code;
+----
+SUMMER25	SUMMER25	NULL
+WELCOME	WELCOME10	20.000
+
+query TTT
+SELECT id, percentage::VARCHAR, inclusive FROM stripe.main.tax_rates() WHERE active ORDER BY id;
+----
+txr_ca	7.25	false
+txr_vat_gb	20.0	true
+
+# -------------------------------------------------------------------- connect
+
+query TTT
+SELECT id, payouts_enabled, requirements_currently_due FROM stripe.main.accounts() ORDER BY id;
+----
+acct_connected1	true	[]
+acct_connected2	false	[external_account, tos_acceptance.date]
+
+query TT
+SELECT account, (amount_decimal - amount_refunded_decimal)::VARCHAR FROM stripe.main.application_fees() ORDER BY account;
+----
+acct_connected1	2.000
+acct_connected2	1.000
+
+query TT
+SELECT destination, sum(amount_decimal - amount_reversed_decimal)::VARCHAR FROM stripe.main.transfers() GROUP BY destination ORDER BY destination;
+----
+acct_connected1	25.000
+acct_connected2	20.000
+
+# Read a connected account (Stripe-Account header) per query ...
+query TIT
+SELECT id, amount, customer FROM stripe.main.charges(stripe_account := 'acct_connected1');
+----
+ch_c1	4000	cus_c1
+
+query TI
+SELECT currency, amount FROM stripe.main.balance(stripe_account := 'acct_connected1');
+----
+usd	3800
+
+statement error
+SELECT count(*) FROM stripe.main.charges(stripe_account := 'acct_unknown9');
+----
+<REGEX>:.*HTTP 403.*
+
+statement error
+SELECT count(*) FROM stripe.main.charges(stripe_account := 'not-an-account');
+----
+<REGEX>:.*not a Stripe account id.*
+
+# ... or for every query through the secret.
+statement ok
+DROP SECRET stripe_fixture;
 
 statement ok
-DROP SECRET stripe_api_test;
+CREATE SECRET stripe_connected (TYPE stripe, API_KEY 'rk_test_fixture', BASE_URL '{STRIPE_FIXTURE_URL}', STRIPE_ACCOUNT 'acct_connected1');
 
-# base_url must be http(s).
-statement error
-SELECT * FROM stripe.main.fetch_items('ftp://example.com');
+query TT
+SELECT id, email FROM stripe.main.customers();
 ----
-<REGEX>:.*
+cus_c1	buyer@example.net
 
-# page_size is a named argument constrained to [1, 1000].
-statement error
-SELECT * FROM stripe.main.fetch_items('{STRIPE_MOCK_API}', page_size := 0);
-----
-<REGEX>:.*
+statement ok
+DROP SECRET stripe_connected;
 
-statement error
-SELECT * FROM stripe.main.fetch_items('{STRIPE_MOCK_API}', page_size := 5000);
+statement ok
+CREATE SECRET stripe_fixture (TYPE stripe, API_KEY 'rk_test_fixture', BASE_URL '{STRIPE_FIXTURE_URL}');
+
+# -------------------------------------------------------------- events / misc
+
+query TI
+SELECT type, count(*) FROM stripe.main.events() WHERE starts_with(type, 'invoice.') GROUP BY type ORDER BY type;
 ----
-<REGEX>:.*
+invoice.created	1
+invoice.finalized	2
+invoice.marked_uncollectible	1
+invoice.paid	1
+invoice.voided	1
+
+query TTTT
+SELECT type, object_type, object_id, previous_attributes FROM stripe.main.events() WHERE type = 'customer.subscription.updated';
+----
+customer.subscription.updated	subscription	sub_margaret	{"cancel_at_period_end":false}
+
+query I
+SELECT count(*) FROM stripe.main.events();
+----
+38
+
+query T
+SELECT id FROM stripe.main.events() WHERE object_id = 'ch_6' ORDER BY id;
+----
+evt_ch_6
+evt_re_2
+
+query TTT
+SELECT id, url_host, status FROM stripe.main.webhook_endpoints() ORDER BY id;
+----
+we_1	hooks.example.com	enabled
+we_2	audit.example.org	disabled
+
+# Neither the signing secret nor the URL path/query (which carry tokens) appear anywhere.
+query I
+SELECT count(*) FROM stripe.main.webhook_endpoints() WHERE raw::VARCHAR LIKE '%whsec%' OR raw::VARCHAR LIKE '%hunter2%' OR raw::VARCHAR LIKE '%/stripe/webhook%';
+----
+0
+
+# The first /v1/files call answers 503 with Stripe-Should-Retry: false, which is not retried.
+statement error
+SELECT count(*) FROM stripe.main.files();
+----
+<REGEX>:.*HTTP 503.*
+
+query TTI
+SELECT id, purpose, size FROM stripe.main.files() ORDER BY id;
+----
+file_1	dispute_evidence	48213
+file_2	finance_report_run	1024
+file_3	identity_document	512000

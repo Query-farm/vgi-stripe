@@ -330,11 +330,11 @@ function listParams<A>(
     if (vs.length === 0) return { query, empty: true };
     if (p.arrayOnly) {
       // More than 20 values: send none and let the SDK filter.
-      if (vs.length <= 20) query[p.param] = vs;
+      if (vs.length <= 20) query[p.param] = [...vs].sort();
     } else if (vs.length === 1) query[p.param] = vs[0];
     else if (p.arrayParam && vs.length <= 20) {
       delete query[p.param];
-      query[p.arrayParam] = vs;
+      query[p.arrayParam] = [...vs].sort();
     } else if (!split && vs.length <= MAX_IN_PHASES) split = { param: p.param, values: vs };
   }
   for (const [col, param] of Object.entries(spec.ranges ?? {})) {

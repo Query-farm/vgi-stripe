@@ -1212,10 +1212,10 @@ export const billingMeters = defineStripeTable({
   ],
 });
 
-/** TIMESTAMPTZ argument (µs bigint or ms number) → whole Unix seconds. */
+/** TIMESTAMPTZ argument (the SDK passes microseconds, as a number or bigint) → whole Unix seconds. */
 function argSeconds(v: unknown, name: string): number {
   if (typeof v === "bigint") return Number(v / 1_000_000n);
-  if (typeof v === "number") return Math.floor(v / 1000);
+  if (typeof v === "number") return Math.floor(v / 1_000_000);
   if (v instanceof Date) return Math.floor(v.getTime() / 1000);
   throw new Error(`meter_event_summaries: ${name} is required`);
 }
