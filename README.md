@@ -17,6 +17,13 @@ customers and their cards, invoices and subscriptions, the product catalog, Conn
 and the event feed. Amounts come both as Stripe's minor-unit integers and as exact
 decimals in the currency's major unit.
 
+It is a **complete read-only integration**: 31 hand-written functions in `stripe.main`
+for everyday analysis, plus a layer generated from Stripe's OpenAPI spec with a table
+function for **every GET endpoint** — Issuing, Treasury, Terminal, Identity, Tax, Climate,
+Financial Connections, Billing (credit grants, meters, entitlements, quotes, portal),
+Radar, reporting and Sigma scheduled query runs, nested lists such as a customer's tax
+ids or a transfer's reversals — and `stripe.api.get(path)` for any single object as JSON.
+
 ```sql
 CREATE SECRET stripe (TYPE stripe, API_KEY 'rk_live_…');   -- a restricted, read-only key
 
@@ -37,9 +44,9 @@ SELECT cancellation_reason, count(*) FROM stripe.main.subscriptions()
 WHERE status = 'canceled' AND canceled_at >= now() - INTERVAL 30 DAY GROUP BY ALL;
 ```
 
-## Functions
+## Curated functions (`stripe.main`)
 
-All are table functions in `stripe.main`. Every function also takes
+The recommended entry points. All are table functions in `stripe.main`. Every function also takes
 `stripe_account := 'acct_…'` (read a Connect account) and `expand := ['customer', …]`
 (raw Stripe expansions, returned in the `raw` JSON column). The searchable resources
 (charges, customers, invoices, payment_intents, prices, products, subscriptions) take
@@ -77,8 +84,9 @@ query ANDed with the pushed filters — the way to filter on metadata:
 | `webhook_endpoints()` | `/v1/webhook_endpoints` | — (URL **host only**; signing secrets and URL paths never leave the worker) |
 | `files()` | `/v1/files` | `created`; `purpose` (metadata only, no contents) |
 
-**Stripe Sigma** is not exposed by the Stripe API, so it is not available here; this
-worker reads the same objects through the REST API instead.
+**Stripe Sigma**: running Sigma SQL is not part of the Stripe API, but the results of your
+*scheduled* Sigma queries are: `stripe.reporting.sigma_scheduled_query_runs()` lists the runs,
+their status and result file ids (`stripe.platform.files()` / `file_links()` hold the files).
 
 ### How filters are translated
 
@@ -103,6 +111,90 @@ re-applied exactly to the rows, so translation only ever narrows what Stripe ret
   `expand[]=data.balance_transaction`: the same number of requests, but larger and slower
   responses. `expand :=` adds your own paths (`expand := ['customer', 'invoice.subscription']`)
   with the same cost model; Stripe allows four levels including `data.`.
+
+## The complete API (generated schemas)
+
+`scripts/generate_api.py` reads the vendored, pinned spec
+(`spec/stripe-openapi/spec3.json` from [stripe/openapi](https://github.com/stripe/openapi),
+MIT; commit, date, API version and checksums in `spec/stripe-openapi/source.json`) and writes
+`src/stripe/generated/endpoints.json`, one descriptor per function, which the worker turns into
+table functions at start-up. `make generate` regenerates it (and the replay data and the
+every-function SQL test); a unit test fails if the committed output is stale.
+
+Stripe's API has 273 GET endpoints. **144 functions** cover them, in one schema per product area
+(vgi-lint caps a schema at 50 objects, so a single `api` schema with everything is not an option):
+
+| Schema | Functions | Covers |
+|---|---:|---|
+| `stripe.payments` | 30 | charges (+ refunds, dispute), PaymentIntents (+ amount line items), refunds, disputes, SetupIntents and attempts, payment methods, configurations and domains, Apple Pay domains, mandates, sources (+ transactions), tokens, confirmation tokens, 3DS authentications, Checkout Sessions and Payment Links (+ line items), Radar (early fraud warnings, value lists and items), reviews, forwarding requests, payment records and attempt records |
+| `stripe.billing` | 45 | customers and their balance / cash-balance transactions, cash balance, discount, bank accounts, cards, sources, payment methods, subscriptions and tax ids; invoices (+ lines), invoice items and payments, rendering templates; credit notes (+ lines, preview, preview lines); quotes (+ line items, computed upfront line items); subscriptions, items, schedules; products (+ features), prices, plans, coupons, promotion codes, shipping rates, trial offers; meters (+ event summaries), alerts, credit grants, credit balance summary and transactions, feedback options; entitlement features and active entitlements; portal configurations; test clocks |
+| `stripe.balance` | 7 | balance, balance settings, balance transactions, payouts, top-ups, exchange rates, country specs |
+| `stripe.connect` | 9 | your account, connected accounts (+ capabilities, external accounts, persons), transfers (+ reversals), application fees (+ refunds) |
+| `stripe.platform` | 7 | events, webhook endpoints, files, file links, app installs, app secrets (names/metadata only) and secret lookup |
+| `stripe.tax` | 11 | Stripe Tax calculations and transactions (+ line items), registrations, settings, tax association lookup, tax locations; tax codes, tax ids, tax rates |
+| `stripe.issuing` | 9 | cards, cardholders, authorizations, transactions, disputes, tokens, settlements, personalization designs, physical bundles |
+| `stripe.treasury` | 11 | financial accounts (+ features), inbound/outbound transfers, outbound payments, credit/debit reversals, received credits/debits, transactions, transaction entries |
+| `stripe.terminal` · `identity` · `financial_connections` · `climate` · `reporting` | 3 · 2 · 4 · 3 · 3 | readers, locations, configurations · verification sessions/reports · accounts (+ owners), transactions, sessions · orders, products, suppliers · report runs, report types, Sigma scheduled query runs |
+| `stripe.api` | 1 | `get(path, params := MAP)` — any documented GET as one JSON row |
+
+Every GET is accounted for in [`src/stripe/generated/EXCLUDED.md`](src/stripe/generated/EXCLUDED.md):
+generated, folded into a generated function (a retrieve-by-id becomes `WHERE id = …` pushdown,
+`…/search` becomes `search :=`) or excluded with the reason. Excluded: deprecated aliases
+(`/v1/balance/history`, `/v1/linked_accounts/*`, `/v1/link_account_sessions/*`,
+`/v1/accounts/{a}/people`, `/v1/accounts/{a}/bank_accounts/{id}`), the binary quote PDF, two
+retrieves keyed by two ids with no list (use `api.get`), and two nested retrieves by two ids
+(filter the nested list by `id`). Non-GET operations, including `test_helpers/*`
+simulations, are writes and are never generated; the one `test_helpers` read (test clocks) is
+`stripe.billing.test_clocks()`. **Stripe's v2 API** (`/v2/…`) is not in `spec3.json` (it has
+its own spec, authentication and pagination) and is not covered; `api.get` accepts `/v1/`
+paths only.
+
+**Columns** follow the response schema: Stripe's own field names; expandable references as
+the id (`VARCHAR`); Unix times as `TIMESTAMPTZ`; enums as `VARCHAR` (values listed in the
+column comment); integer amounts beside a `currency` as `BIGINT` minor units plus an exact
+`<name>_decimal` `DECIMAL(38,3)`; `metadata` as `MAP(VARCHAR, VARCHAR)`; small flat objects
+(≤ 6 scalar fields, e.g. an invoice item's `period`) as `STRUCT`; everything deeper as `JSON`;
+`raw` is the whole object. Very wide objects keep their most useful columns so the published
+column schema stays under vgi-lint's 4,000-character limit (the rest is in `raw`).
+
+**Pushdown** is generated from each endpoint's documented query parameters, and the SDK
+re-applies every filter exactly:
+
+- `=` / `IN` on columns that are list parameters (`customer`, `status`, `type`, `charge`, …);
+  array parameters (`ids[]`, `lookup_keys[]`, `types[]`) take an `IN` list in one request;
+- `created` and other time columns with a range parameter → `[gte]`/`[lte]` in whole seconds;
+- boolean parameters (`active`, `livemode`-style flags);
+- `id = …` / `IN` (≤ 25) on a function whose resource has a retrieve endpoint → one
+  `GET /v1/<resource>/{id}` per id (a missing id is no row), unless the list takes `ids[]`;
+- every other documented scalar query parameter is a named argument (`payout :=`,
+  `relationship_owner :=`, `card :=`, …), and `params := MAP {'relationship[owner]': 'true'}`
+  passes any documented parameter verbatim (unknown or paging parameters are refused);
+- paging (`starting_after`) is externalized in the scan state, so scans resume over HTTP.
+
+**Nested lists** (`/v1/customers/{customer}/tax_ids`, `/v1/transfers/{id}/reversals`, the
+Treasury lists that require a `financial_account`, …) take the parent id as a named argument
+(`customer_id := 'cus_…'`) or a pushed `customer = / IN` filter, and read only those parents.
+Without one they **fan out**: list every parent (one request per 100 parents) and read each
+parent's children (one request per parent, more if it has over 100). On an account with 10,000
+customers a bare `billing.customer_tax_ids()` is ~10,100 requests at Stripe's rate limit, so name
+the parents when you can. Lists whose parent Stripe cannot list (tax calculation line items,
+source transactions) require the id.
+
+**Redaction.** Every field the spec documents as a credential is replaced by `[redacted]`
+before any column is built, `raw` and `JSON` columns included, and is never a column or a pushed
+parameter: `client_secret` (PaymentIntents, SetupIntents, Checkout, Identity, Financial
+Connections, customer sessions), `secret` (webhook endpoints, ephemeral keys), the invoice
+`confirmation_secret`, Terminal Wi-Fi `password` / `private_key_file*`, bank-account tokens,
+Klarna `client_token`, full `account_number`s and Identity `id_number`s; and, on those object
+types only, an Apps secret's `payload`, an Issuing card's full `number` / `cvc`, and a file
+link's `url` (a public, unauthenticated download link — the file link's id, file and expiry
+remain).
+
+**Products not enabled.** Endpoints of products your account has not activated (Issuing,
+Treasury, Terminal, Identity, Climate, Connect, …) fail with a clear message such as
+`stripe: issuing is not enabled on this Stripe account (GET /v1/issuing/cards failed with HTTP
+400: …)`; a restricted key without the permission says `the API key has no read permission for
+…`.
 
 ## Money and types
 
@@ -183,7 +275,7 @@ The same binary serves HTTP with `--http --port 8000` (see the `Dockerfile`).
 ## Testing
 
 ```bash
-make test-unit                 # bun unit tests (money, pushdown/search translation, retries, planning)
+make test-unit                 # bun unit tests (money, pushdown/search translation, retries, planning, generated layer)
 make test-sql                  # test/sql/*.test through Haybarn 2.0 (stdio)
 make test-sql TRANSPORT=http   # …over HTTP (also: launch)
 make check                     # everything CI runs
@@ -191,10 +283,14 @@ make check                     # everything CI runs
 
 No test touches the network or a real Stripe account. `test/mock_api/server.py` is a
 strict, stdlib-only replay server over a generated account
-(`test/fixtures/build_fixture.py` → `stripe-account.json`). At start-up it checks every
-fixture object's fields against Stripe's OpenAPI spec
-([stripe/openapi](https://github.com/stripe/openapi), MIT; trimmed to
-`stripe-openapi-subset.json` by `build_spec_subset.py`). It enforces the bearer key, the
+(`test/fixtures/build_fixture.py` → `stripe-account.json`) plus generated data for every other
+GET endpoint (`test/fixtures/build_api_fixture.py` → `stripe-api-account.json`, derived from
+Stripe's own example objects in `fixtures3.json`, with sentinel values in every credential
+field). At start-up it checks every fixture object's fields against the vendored full OpenAPI
+spec. `test/sql/api_every_function.test` (generated) calls all 144 generated functions, and
+`test/sql/api.test` asserts their pushdown, fan-out, redaction and error behaviour; the key
+`rk_test_basic` answers like an account without Issuing/Treasury/Terminal/Identity/Climate.
+It enforces the bearer key, the
 `Stripe-Version` format and `Stripe-Account`; accepts exactly each endpoint's spec
 parameters (unknown or unimplemented ones are a 400); really filters on every list
 parameter and time range; evaluates a subset of the Search query language; pages three

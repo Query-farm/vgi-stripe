@@ -372,7 +372,7 @@ SELECT * FROM stripe.issuing.cards();
 statement error
 SELECT * FROM stripe.treasury.financial_accounts();
 ----
-<REGEX>:.*treasury is not enabled on this Stripe account.*
+<REGEX>:.*treasury is not available on this Stripe account.*
 
 statement ok
 DROP SECRET stripe_basic;

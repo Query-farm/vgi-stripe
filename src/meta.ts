@@ -8,7 +8,7 @@
 import { field, type VgiDataType, type VgiField } from "@query-farm/vgi";
 
 export const CATALOG_NAME = "stripe";
-export const VERSION = "0.1.0";
+export const VERSION = "0.2.0";
 
 export const SOURCE_URL = "https://github.com/Query-farm/vgi-stripe";
 
@@ -112,7 +112,11 @@ export const CATALOG_DOC_LLM =
   "filters on created (and other time) ranges, ids such as customer / subscription / payment_intent, status and " +
   "type push down as list parameters; filters the list API lacks (charge status, amount, customer name, product " +
   "name …) switch to the eventually consistent Search API; `search := ` takes a raw Stripe search query (e.g. " +
-  "metadata). Stripe Sigma is not available through the API. Docs: https://docs.stripe.com/api ; search syntax " +
+  "metadata). Beyond these curated functions in stripe.main, one schema per Stripe product area holds a generated " +
+  "table function for every documented GET endpoint (Issuing, Treasury, Terminal, Identity, Tax, Climate, " +
+  "Financial Connections, reporting and Sigma scheduled query runs, …), and stripe.api.get(path) returns any single " +
+  "object as JSON. Sigma queries themselves cannot be run through the API, but their scheduled runs (and result " +
+  "files) can be listed. Docs: https://docs.stripe.com/api ; search syntax " +
   "https://docs.stripe.com/search#search-query-language .";
 
 export const CATALOG_DOC_MD =
@@ -122,8 +126,12 @@ export const CATALOG_DOC_MD =
   "Create a `stripe` secret with an API key — a **restricted key** with read permissions is recommended. Filters " +
   "on time ranges, ids, status and type become Stripe list parameters; filters only Stripe Search understands " +
   "use the Search API. Amounts come both as Stripe's minor-unit integers and as exact decimals. Pagination, " +
-  "rate limits (429 + `Stripe-Should-Retry`) and Connect (`Stripe-Account`) are handled for you. Stripe Sigma " +
-  "is not exposed by the API, so it is not available here.\n\n" +
+  "rate limits (429 + `Stripe-Should-Retry`) and Connect (`Stripe-Account`) are handled for you.\n\n" +
+  "### Every endpoint\n\nThe curated `main` schema covers everyday analysis. For everything else, one schema per " +
+  "Stripe product area is generated from Stripe's OpenAPI spec with a table function for every read endpoint, " +
+  "nested lists included, and `api.get(path)` returns any single object as raw JSON. Sigma's scheduled query runs " +
+  "are listed there (running Sigma SQL is not part of the API). Products not enabled on the account answer with a " +
+  'clear "not enabled" error.\n\n' +
   SOURCES_MD;
 
 export const SCHEMA_DOC_LLM =

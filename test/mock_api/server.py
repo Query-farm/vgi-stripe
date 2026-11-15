@@ -103,7 +103,8 @@ KEYS = {"rk_test_fixture": set(), "sk_test_fixture": set(), "rk_test_nopayouts":
         "rk_test_basic": set()}
 NOT_ENABLED = {
     "issuing": "Your account is not set up to use Issuing. Please visit https://dashboard.stripe.com/issuing/overview to get started.",
-    "treasury": "Your account is not set up to use Treasury. Please visit https://dashboard.stripe.com/treasury to get started.",
+    # Live test accounts without Treasury answer its documented endpoints with this (seen 2026-11-15).
+    "treasury": "Unrecognized request URL (GET: {path}). Please see https://stripe.com/docs or we can help at https://support.stripe.com/.",
     "terminal": "Your account is not set up to use Terminal. Please visit https://dashboard.stripe.com/terminal to get started.",
     "identity": "Your account is not set up to use Identity. Please visit https://dashboard.stripe.com/identity to get started.",
     "climate": "Your account is not set up to use Climate. Please visit https://dashboard.stripe.com/climate to get started.",
@@ -776,7 +777,7 @@ class Handler(BaseHTTPRequestHandler):
                                f"The provided key does not have access to account '{account}' (or that account does not exist).")
             family = url.path.split("/")[2] if url.path.count("/") >= 2 else ""
             if key == "rk_test_basic" and family in NOT_ENABLED:
-                raise ApiError(400, "invalid_request_error", NOT_ENABLED[family])
+                raise ApiError(400, "invalid_request_error", NOT_ENABLED[family].format(path=url.path))
             if url.path in KEYS[key]:
                 raise ApiError(403, "permission_error",
                                f"The provided key '{key[:8]}****' does not have the required permissions for this endpoint.")

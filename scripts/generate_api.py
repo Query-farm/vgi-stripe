@@ -865,6 +865,8 @@ def build(spec: Spec) -> tuple[list[dict], list[tuple[str, str]], list[str]]:
                         a["ch"] = ss["enum"]
                     if (path, f"{name}[{sub}]") in ARG_DEFAULTS:
                         a["def"] = ARG_DEFAULTS[(path, f"{name}[{sub}]")]
+                    elif req and sub == "type":
+                        a["req"] = True  # a required object parameter is selected by its type
                     args.append(a)
                 if req:
                     required_with_column.append(name)

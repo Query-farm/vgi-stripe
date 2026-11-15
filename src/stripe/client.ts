@@ -52,6 +52,11 @@ export function featureMessage(path: string, status: number, summary: string): s
   if ((status === 400 || status === 403 || status === 404) && NOT_ENABLED.test(summary)) {
     return `stripe: ${family} is not enabled on this Stripe account (GET ${path} failed with HTTP ${status}: ${summary})`;
   }
+  // Stripe answers a documented endpoint of a product the account does not have (Treasury,
+  // the retired Exchange Rates API on newer accounts) with "Unrecognized request URL".
+  if ((status === 400 || status === 404) && /unrecognized request url/i.test(summary)) {
+    return `stripe: ${family} is not available on this Stripe account (GET ${path} is a documented endpoint, but Stripe answered HTTP ${status}: ${summary})`;
+  }
   if (status === 403 && PERMISSION.test(summary)) {
     return `stripe: the API key has no read permission for ${family} (GET ${path} failed with HTTP 403: ${summary}); grant it Read on the restricted key`;
   }

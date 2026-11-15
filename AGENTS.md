@@ -30,18 +30,31 @@ src/
     pushdown.ts    # WHERE → list parameters, second ranges, Stripe Search clauses
     table.ts       # the table-function factory: paging cursors, Search, expansion, fan-out
     money.ts       # currency exponents; minor units → exact decimals
-    resources.ts   # one spec per Stripe endpoint (31 functions)
+    resources.ts   # the curated stripe.main functions (31 hand-written specs)
+    api.ts         # the generated layer: endpoints.json descriptors → table functions; api.get
+    generated/     # endpoints.json + EXCLUDED.md, written by scripts/generate_api.py (do not edit)
   cli.ts           # flag parsing: stdio / --unix / --http (PORT:<n>, /health)
   log.ts           # stderr logger
 bin/               # vgi-stripe-worker (what DuckDB launches)
 tests/             # bun unit tests (pure logic + client against the replay server)
 test/sql/          # sqllogictest files run through DuckDB (stripe.test, pushdown.test)
 test/mock_api/     # strict offline Stripe replay server (stdlib Python)
-test/fixtures/     # generated account + trimmed Stripe OpenAPI spec, and their builders
+test/fixtures/     # curated account (build_fixture.py), generated-layer data (build_api_fixture.py),
+                   # generated every-function SQL test (build_api_tests.py)
+spec/stripe-openapi/ # vendored, pinned Stripe OpenAPI spec + fixtures (MIT); source.json = commit
 ci/                # integration harness used by `make test-sql` and CI
-scripts/           # vgi_template.py (init / template-diff)
+scripts/           # vgi_template.py (init / template-diff), generate_api.py (the spec-driven layer)
 vgi-agent-tests.yaml  # private graders for the agent test tasks
 ```
+
+## The generated layer
+
+Every Stripe GET endpoint outside `stripe.main` is generated: edit `scripts/generate_api.py`
+(schema placement, naming, parent lists, exclusions with reasons), then `make generate`, which
+rewrites `src/stripe/generated/*`, `test/fixtures/stripe-api-account.json`,
+`test/sql/api_every_function.test` and the generated block of `vgi-agent-tests.yaml`. Never edit
+those outputs by hand; `tests/api.test.ts` fails when they are stale. To move to a newer Stripe
+API version, refresh `spec/stripe-openapi/` (see `source.json`) and run `make generate`.
 
 ## Recipe: add a function
 

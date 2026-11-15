@@ -1062,7 +1062,7 @@
      "d": "The filter criteria for the credit balance summary.",
      "n": "filter_type",
      "p": "filter[type]",
-     "req": false,
+     "req": true,
      "t": "VARCHAR"
     }
    ],
@@ -1093,7 +1093,7 @@
    "detail": "Retrieves the credit balance summary for a customer.",
    "example": {
     "description": "Key fields of the credit balance summary (/v1/billing/credit_balance_summary)",
-    "sql": "SELECT customer_account, livemode FROM stripe.billing.credit_balance_summary()"
+    "sql": "SELECT customer_account, livemode FROM stripe.billing.credit_balance_summary(filter_type := 'applicability_scope')"
    },
    "fanout": null,
    "mode": "single",
@@ -1122,7 +1122,7 @@
    "task": {
     "name": "api_billing_credit_balance_summary",
     "prompt": "Show the key fields of the Stripe credit balance summary (customer_account, livemode).",
-    "reference_sql": "SELECT customer_account, livemode FROM stripe.billing.credit_balance_summary()"
+    "reference_sql": "SELECT customer_account, livemode FROM stripe.billing.credit_balance_summary(filter_type := 'applicability_scope')"
    }
   },
   {

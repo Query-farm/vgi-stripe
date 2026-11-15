@@ -122,7 +122,7 @@ tasks:
   - name: api_billing_coupons
     reference_sql: "SELECT currency, count(*) AS n FROM stripe.billing.coupons() GROUP BY currency ORDER BY currency"
   - name: api_billing_credit_balance_summary
-    reference_sql: "SELECT customer_account, livemode FROM stripe.billing.credit_balance_summary()"
+    reference_sql: "SELECT customer_account, livemode FROM stripe.billing.credit_balance_summary(filter_type := 'applicability_scope')"
   - name: api_billing_credit_balance_transactions
     reference_sql: "SELECT type, count(*) AS n FROM stripe.billing.credit_balance_transactions() GROUP BY type ORDER BY type"
   - name: api_billing_credit_grants

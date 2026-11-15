@@ -1,6 +1,22 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.2.0 (unreleased)
+
+Complete read-only coverage of the Stripe API.
+
+- 144 table functions generated from Stripe's OpenAPI spec (vendored and pinned:
+  stripe/openapi a045100, API 2026-09-30.endive), one per GET endpoint, in 13 product
+  schemas: payments, billing, balance, connect, platform, tax, issuing, treasury, terminal,
+  identity, financial_connections, climate, reporting. Nested lists fan out over their parent.
+  `src/stripe/generated/EXCLUDED.md` accounts for all 273 GET endpoints.
+- `stripe.api.get(path, params := MAP)`: any documented GET as one JSON row.
+- Pushdown generated from documented parameters; `WHERE id = / IN` becomes per-id retrieves;
+  other parameters are named arguments; `params := MAP` passes any documented parameter.
+- Redaction now covers every credential field the spec documents, in every column.
+- Products not enabled on an account, and keys without a permission, give clear errors.
+- `stripe.main` is unchanged.
+
+## 0.1.0
 
 First release: Stripe as SQL, read-only.
 

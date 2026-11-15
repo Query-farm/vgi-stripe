@@ -82,6 +82,13 @@ test("feature-not-enabled and permission failures become clear messages", () => 
   expect(
     featureMessage("/v1/climate/orders", 403, "The provided key does not have the required permissions"),
   ).toContain("no read permission for climate");
+  expect(
+    featureMessage(
+      "/v1/treasury/financial_accounts",
+      400,
+      "Unrecognized request URL (GET: /v1/treasury/financial_accounts)",
+    ),
+  ).toContain("treasury is not available on this Stripe account");
   expect(featureMessage("/v1/charges", 400, "Invalid integer: x")).toBeUndefined();
 });
 
