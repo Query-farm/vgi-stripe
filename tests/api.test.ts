@@ -9,14 +9,8 @@ import { planRequests, REDACTED, redactSecrets, type StripeTableSpec } from "../
 
 const ROOT = join(import.meta.dir, "..");
 
-test("the committed generated layer matches the vendored spec (make generate)", () => {
-  const p = Bun.spawnSync(["uv", "run", "--no-project", "python", "scripts/generate_api.py", "--check"], {
-    cwd: ROOT,
-    stderr: "pipe",
-  });
-  expect(p.stderr.toString()).not.toContain("out of date");
-  expect(p.exitCode).toBe(0);
-});
+// The generated layer and replay data are checked against the spec by `make check-generated`
+// (its own CI job, since it needs Python).
 
 test("every GET endpoint of the spec is generated, folded into one, or excluded with a reason", async () => {
   const spec = JSON.parse(await Bun.file(join(ROOT, "spec/stripe-openapi/spec3.json")).text()) as {

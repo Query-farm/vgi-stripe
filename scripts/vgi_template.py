@@ -122,7 +122,7 @@ def _iter_files() -> list[Path]:
     files: list[Path] | None = None
     try:
         out = subprocess.run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
-                             cwd=ROOT, capture_output=True, text=True, check=True).stdout
+                             cwd=ROOT, capture_output=True, text=True, encoding="utf-8", check=True).stdout
         files = [ROOT / f for f in out.split("\0") if f and (ROOT / f).is_file()]
     except (OSError, subprocess.CalledProcessError):
         pass
@@ -142,7 +142,7 @@ def _iter_files() -> list[Path]:
 def _git_remote_slug() -> str | None:
     try:
         url = subprocess.run(["git", "remote", "get-url", "origin"], cwd=ROOT, capture_output=True,
-                             text=True, check=True).stdout.strip()
+                             text=True, encoding="utf-8", check=True).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return None
     m = re.search(r"[:/]([^/:]+/[^/]+?)(?:\.git)?$", url)
@@ -152,7 +152,7 @@ def _git_remote_slug() -> str | None:
 
 
 def cmd_init(args: argparse.Namespace) -> int:
-    prov = json.loads(PROVENANCE.read_text())
+    prov = json.loads(PROVENANCE.read_text(encoding="utf-8"))
     if prov.get("name"):
         print(f"already initialized as {prov['name']!r}; nothing to do", file=sys.stderr)
         return 1
@@ -201,7 +201,7 @@ def cmd_init(args: argparse.Namespace) -> int:
             path.rename(path.with_name(new_name))
 
     prov.update({"name": snake, "repo": repo, "initialized": dt.date.today().isoformat()})
-    PROVENANCE.write_text(json.dumps(prov, indent=2) + "\n")
+    PROVENANCE.write_text(json.dumps(prov, indent=2) + "\n", encoding="utf-8", newline="\n")
     print(f"renamed starter -> {snake} in {changed} files (repo: {repo})")
 
     if not args.no_post:
@@ -215,7 +215,7 @@ def cmd_init(args: argparse.Namespace) -> int:
 
 
 def cmd_template_diff(args: argparse.Namespace) -> int:
-    prov = json.loads(PROVENANCE.read_text())
+    prov = json.loads(PROVENANCE.read_text(encoding="utf-8"))
     url = f"https://github.com/Query-farm/{prov['template']}.git"
     base_tag, target = f"v{prov['template_version']}", args.to
     print(f"fetching {url} ({base_tag} .. {target})")

@@ -16,7 +16,7 @@ import {
   CATALOG_NAME,
   CATALOG_TAGS,
   keywordsArray,
-  SCHEMA_DOC_MD,
+  SCHEMA_COMMENT,
   SCHEMA_TAGS,
   SOURCE_URL,
   STRIPE_API_VERSION,
@@ -169,7 +169,7 @@ export const CATALOG: CatalogDescriptor = {
   schemas: [
     {
       path: ["main"],
-      comment: SCHEMA_DOC_MD,
+      comment: SCHEMA_COMMENT,
       functions: FUNCTIONS,
       tags: { ...SCHEMA_TAGS, "vgi.example_queries": JSON.stringify(ALL_EXAMPLES.slice(0, 12)) },
     },

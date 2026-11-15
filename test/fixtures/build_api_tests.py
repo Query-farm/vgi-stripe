@@ -12,11 +12,12 @@ parent id, so the fan-out over every parent is exercised for each of them.
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-GEN = json.loads((ROOT / "src/stripe/generated/endpoints.json").read_text())
-DATA = json.loads((ROOT / "test/fixtures/stripe-api-account.json").read_text())
+GEN = json.loads((ROOT / "src/stripe/generated/endpoints.json").read_text(encoding="utf-8"))
+DATA = json.loads((ROOT / "test/fixtures/stripe-api-account.json").read_text(encoding="utf-8"))
 
 # Values for arguments Stripe requires (the replay data has matching objects where it matters).
 REQUIRED = {
@@ -82,6 +83,7 @@ def main() -> None:
             "true",
             "",
         ]
+    sys.stdout.reconfigure(encoding="utf-8", newline="\n")  # redirected stdout is the locale codepage on Windows
     print("\n".join(out))
 
 

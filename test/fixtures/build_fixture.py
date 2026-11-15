@@ -676,5 +676,6 @@ ACCOUNT = {
     "connected": CONNECTED,
 }
 
+sys.stdout.reconfigure(encoding="utf-8", newline="\n")  # redirected stdout is the locale codepage on Windows
 json.dump(ACCOUNT, sys.stdout, indent=1, sort_keys=True)
 sys.stdout.write("\n")

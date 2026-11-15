@@ -11,7 +11,7 @@ HAYBARN_UNITTEST := $(TOOLS)/bin/haybarn-unittest
 TRANSPORT       ?= stdio
 
 .DEFAULT_GOAL := help
-.PHONY: generate help build test test-unit test-sql test-sql-all lint lint-explain lint-ai fmt check run run-http debug tools template-diff clean
+.PHONY: generate check-generated help build test test-unit test-sql test-sql-all lint lint-explain lint-ai fmt check run run-http debug tools template-diff clean
 
 help: ## List the targets
 	@awk 'BEGIN{FS=":.*## "} /^[a-zA-Z_-]+:.*## /{printf "  %-14s %s\n",$$1,$$2}' $(MAKEFILE_LIST)
@@ -49,7 +49,7 @@ lint-explain: build ## Metadata quality report (vgi-lint, settings in vgi-lint.t
 lint-ai: ## Opt-in L3 check: an agent runs vgi-agent-tests.yaml and docs are reviewed (needs the claude CLI)
 	@$(MAKE) --no-print-directory lint-explain LINT_ARGS="--ai $(LINT_ARGS)"
 
-check: lint test-unit test-sql-all lint-explain ## Everything CI runs. Done = this passes.
+check: lint check-generated test-unit test-sql-all lint-explain ## Everything CI runs. Done = this passes.
 
 run: build ## Serve over stdio (what DuckDB launches)
 	$(WORKER)
@@ -65,6 +65,12 @@ generate: ## Regenerate the spec-driven layer, its replay data and its every-fun
 	uv run --no-project python scripts/generate_api.py
 	uv run --no-project python test/fixtures/build_api_fixture.py > test/fixtures/stripe-api-account.json
 	uv run --no-project python test/fixtures/build_api_tests.py > test/sql/api_every_function.test
+
+check-generated: ## Fail if the committed generated layer, replay data or SQL tests drift from spec/ and the builders
+	uv run --no-project python scripts/generate_api.py --check
+	uv run --no-project python test/fixtures/build_fixture.py | cmp - test/fixtures/stripe-account.json
+	uv run --no-project python test/fixtures/build_api_fixture.py | cmp - test/fixtures/stripe-api-account.json
+	uv run --no-project python test/fixtures/build_api_tests.py | cmp - test/sql/api_every_function.test
 
 template-diff: ## Show upstream template changes since this project was created
 	uv run --no-project python scripts/vgi_template.py template-diff --stat

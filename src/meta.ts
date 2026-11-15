@@ -142,11 +142,25 @@ export const SCHEMA_DOC_LLM =
   "search query). Child collections (invoice_line_items, subscription_items, payment_methods) take the parent " +
   "id as a named argument or a pushed `= / IN` filter, and otherwise read every parent. All need a `stripe` secret.";
 
+export const SCHEMA_COMMENT =
+  "Curated Stripe tables for everyday analysis: payments, balance and payouts, customers, billing, the product " +
+  "catalog, Connect and the event feed.";
+
 export const SCHEMA_DOC_MD =
   "## main\n\n" +
-  "Stripe API collections as table functions: payments, balance and payouts, customers, billing, the product " +
-  "catalog, Connect and the event feed.\n\n" +
-  "All functions need a `stripe` secret; time ranges, ids, status and type filters push down to Stripe.";
+  "The hand-tuned Stripe functions: one table function per core list endpoint, with money as `BIGINT` minor " +
+  "units plus exact `*_decimal` amounts, Unix times as `TIMESTAMPTZ` and metadata as a `MAP`.\n\n" +
+  "### Arguments\n\n" +
+  "Every function takes `stripe_account :=` (read a Connect account) and `expand := [...]` (Stripe expand paths " +
+  "into the `raw` JSON column). Searchable resources (charges, customers, invoices, payment_intents, prices, " +
+  "products, subscriptions) also take `search :=`, a Stripe search query.\n\n" +
+  "### Pushdown\n\n" +
+  "`created`-style time ranges, ids, status and type filters are sent to Stripe; other filters run in DuckDB. " +
+  "Child collections (invoice_line_items, subscription_items, payment_methods) take the parent id as a named " +
+  "argument or a pushed `= / IN` filter, and otherwise read every parent (one request each).\n\n" +
+  "### Credentials\n\n" +
+  "All functions need a `stripe` secret holding an API key; a restricted `rk_...` read-only key is enough. " +
+  "For endpoints not covered here, use the generated schemas or `stripe.api.get`.";
 
 export const AGENT_TEST_TASKS = [
   {

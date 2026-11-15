@@ -415,7 +415,7 @@ def title_of(name: str) -> str:
 
 class Spec:
     def __init__(self, path: Path):
-        self.raw = json.loads(path.read_text())
+        self.raw = json.loads(path.read_text(encoding="utf-8"))
         self.S = self.raw["components"]["schemas"]
         self.version = self.raw["info"]["version"]
 
@@ -1069,7 +1069,7 @@ def example_value(ep: dict, a: dict, sample: dict) -> str:
 
 
 def write_outputs(spec: Spec, endpoints: list[dict], excluded, folded, get_paths: list[str], check: bool) -> int:
-    ids = json.loads((ROOT / "test" / "fixtures" / "api-example-ids.json").read_text()) \
+    ids = json.loads((ROOT / "test" / "fixtures" / "api-example-ids.json").read_text(encoding="utf-8")) \
         if (ROOT / "test" / "fixtures" / "api-example-ids.json").exists() else {}
     EXAMPLE_IDS.update(ids)
     for ep in endpoints:
@@ -1078,7 +1078,7 @@ def write_outputs(spec: Spec, endpoints: list[dict], excluded, folded, get_paths
         ep["task"] = {"name": f"api_{ep['schema']}_{ep['name']}", "prompt": ex["prompt"], "reference_sql": ex["reference"]}
     out = {
         "generated_by": "scripts/generate_api.py",
-        "spec": json.loads((SPEC_DIR / "source.json").read_text()),
+        "spec": json.loads((SPEC_DIR / "source.json").read_text(encoding="utf-8")),
         "schemas": {k: {"title": v[0], "description": v[1],
                         "categories": [{"name": c, "title": t, "description": d} for c, (t, d) in v[2].items()]}
                     for k, v in SCHEMAS.items()},
@@ -1093,7 +1093,7 @@ def write_outputs(spec: Spec, endpoints: list[dict], excluded, folded, get_paths
         f"  - name: {ep['task']['name']}\n    reference_sql: {json.dumps(ep['task']['reference_sql'])}"
         for ep in endpoints
     )
-    agent = AGENT_TESTS.read_text()
+    agent = AGENT_TESTS.read_text(encoding="utf-8")
     block = f"{GEN_BEGIN}\n{tasks}\n{GEN_END}"
     if GEN_BEGIN in agent:
         agent = re.sub(re.escape(GEN_BEGIN) + r".*?" + re.escape(GEN_END), lambda _: block, agent, flags=re.S)
@@ -1102,14 +1102,14 @@ def write_outputs(spec: Spec, endpoints: list[dict], excluded, folded, get_paths
     files[AGENT_TESTS] = agent
     changed = 0
     for p, text in files.items():
-        old = p.read_text() if p.exists() else None
+        old = p.read_text(encoding="utf-8") if p.exists() else None
         if old != text:
             changed += 1
             if check:
                 print(f"out of date: {p.relative_to(ROOT)}", file=sys.stderr)
             else:
                 p.parent.mkdir(parents=True, exist_ok=True)
-                p.write_text(text)
+                p.write_text(text, encoding="utf-8", newline="\n")
     return changed
 
 

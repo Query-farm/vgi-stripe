@@ -64,9 +64,9 @@ from urllib.parse import parse_qsl, urlparse
 
 HERE = Path(__file__).resolve().parent
 FIXTURES = HERE.parent / "fixtures"
-ACCOUNT = json.loads((FIXTURES / "stripe-account.json").read_text())
-GEN = json.loads((FIXTURES / "stripe-api-account.json").read_text())
-FULL_SPEC = json.loads((HERE.parent.parent / "spec" / "stripe-openapi" / "spec3.json").read_text())
+ACCOUNT = json.loads((FIXTURES / "stripe-account.json").read_text(encoding="utf-8"))
+GEN = json.loads((FIXTURES / "stripe-api-account.json").read_text(encoding="utf-8"))
+FULL_SPEC = json.loads((HERE.parent.parent / "spec" / "stripe-openapi" / "spec3.json").read_text(encoding="utf-8"))
 
 
 def _deref(x: dict) -> dict:
