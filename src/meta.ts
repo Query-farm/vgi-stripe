@@ -3,11 +3,6 @@
  *
  * DuckDB, coding agents and the `vgi-lint` metadata checker all read these
  * tags. Keep every object documented and `make lint-explain` stays at 100.
- *
- * - Catalog-level tags (title, license, author, links, long description) live in
- *   `CATALOG_TAGS` below.
- * - Every function carries `objectTags(...)`: a title, a category from
- *   `SCHEMA_CATEGORIES`, search keywords, and LLM- and human-facing docs.
  */
 
 import { field, type VgiDataType, type VgiField } from "@query-farm/vgi";
@@ -15,16 +10,45 @@ import { field, type VgiDataType, type VgiField } from "@query-farm/vgi";
 export const CATALOG_NAME = "stripe";
 export const VERSION = "0.1.0";
 
-export const SOURCE_URL = "https://github.com/your-org/vgi-stripe";
+export const SOURCE_URL = "https://github.com/Query-farm/vgi-stripe";
 
 /**
- * Categories group functions in docs and agent tools. Every object's
- * `vgi.category` must name one of these.
+ * The Stripe API version sent as `Stripe-Version` unless the secret pins another
+ * (column extraction also reads the older field locations, so older pins work).
+ * It is the version of the OpenAPI spec the fixtures were checked against.
  */
+export const STRIPE_API_VERSION = "2026-09-30.endive";
+
+/** Categories group functions in docs and agent tools. Every object's `vgi.category` names one. */
 export const SCHEMA_CATEGORIES = [
-  { name: "text", title: "Text", description: "Functions that build or transform strings." },
-  { name: "generators", title: "Generators", description: "Table functions that generate rows." },
-  { name: "api", title: "REST APIs", description: "Table functions that read from HTTP APIs." },
+  {
+    name: "payments",
+    title: "Payments",
+    description: "Charges, PaymentIntents, refunds, disputes, payment methods, Checkout Sessions and Radar warnings.",
+  },
+  {
+    name: "balance",
+    title: "Balance & Payouts",
+    description: "The account balance, balance transactions and payouts.",
+  },
+  { name: "customers", title: "Customers", description: "Customers and their saved payment methods." },
+  {
+    name: "billing",
+    title: "Billing",
+    description:
+      "Invoices and their lines, invoice items, subscriptions and their items, subscription schedules, credit notes, meters.",
+  },
+  {
+    name: "product_catalog",
+    title: "Product Catalog",
+    description: "Products, prices, coupons, promotion codes and tax rates.",
+  },
+  { name: "connect", title: "Connect", description: "Connected accounts, application fees and transfers." },
+  {
+    name: "platform",
+    title: "Events & Platform",
+    description: "The event (change) feed, webhook endpoints and files.",
+  },
 ] as const;
 
 export type Category = (typeof SCHEMA_CATEGORIES)[number]["name"];
@@ -61,83 +85,121 @@ export function column(name: string, type: VgiDataType, comment: string, nullabl
   return field(name, type, nullable, new Map([["comment", comment]]));
 }
 
+const SOURCES_MD =
+  "### Sources and references\n\n" +
+  "- [Stripe API reference](https://docs.stripe.com/api) — the endpoints this worker reads\n" +
+  "- [Pagination](https://docs.stripe.com/api/pagination) and [Search](https://docs.stripe.com/search) (query language, eventual consistency)\n" +
+  "- [Expanding responses](https://docs.stripe.com/expand) and [API versioning](https://docs.stripe.com/api/versioning)\n" +
+  "- [Restricted API keys](https://docs.stripe.com/keys#limit-access) and [rate limits](https://docs.stripe.com/rate-limits)\n" +
+  "- [Currencies and minor units](https://docs.stripe.com/currencies#minor-units)\n" +
+  "- [stripe/openapi](https://github.com/stripe/openapi) — the spec the test fixtures are checked against";
+
+export const CATALOG_COMMENT =
+  "Stripe as SQL: payments, balance, customers, billing, product catalog, Connect and the event feed, read-only from the Stripe API.";
+
 export const CATALOG_DOC_LLM =
-  "An example VGI worker generated from the Query.Farm starter template. It shows the three shapes " +
-  "most workers need: a vectorized scalar function with an overload, a deterministic table " +
-  "function with a named default argument, and a table function that pages through a REST API with " +
-  "retries and an optional bearer token taken from a DuckDB secret or an environment variable. " +
-  "Replace them with your own functions; keep the metadata complete so agents can discover and " +
-  "call them.";
+  "Read-only SQL access to a Stripe account through the Stripe REST API. Reach for it to analyse payments " +
+  "(charges, PaymentIntents, refunds, disputes, Radar early fraud warnings, Checkout Sessions), money movement " +
+  "(balance, balance transactions with fees and net, payouts), customers and their card payment methods (brand, " +
+  "last4, expiry only), billing (invoices and line items, invoice items, subscriptions and items, schedules, " +
+  "credit notes, billing meters and usage summaries), the product catalog (products, prices, coupons, promotion " +
+  "codes, tax rates), Connect (accounts, application fees, transfers) and the event change feed (last 30 days). " +
+  "Every function is a table function in stripe.main and needs a `stripe` DuckDB secret: CREATE SECRET (TYPE " +
+  "stripe, API_KEY 'rk_live_…') — a restricted key with read permissions is recommended; STRIPE_ACCOUNT reads " +
+  "a Connect account, API_VERSION pins Stripe-Version. Amounts are integers in the currency's minor unit " +
+  "(`amount` BIGINT, cents for USD, yen for JPY) with an exact `amount_decimal` DECIMAL(38,3) in the major unit; " +
+  "timestamps are TIMESTAMPTZ; metadata is MAP(VARCHAR, VARCHAR); `raw` holds the whole object as JSON. WHERE " +
+  "filters on created (and other time) ranges, ids such as customer / subscription / payment_intent, status and " +
+  "type push down as list parameters; filters the list API lacks (charge status, amount, customer name, product " +
+  "name …) switch to the eventually consistent Search API; `search := ` takes a raw Stripe search query (e.g. " +
+  "metadata). Stripe Sigma is not available through the API. Docs: https://docs.stripe.com/api ; search syntax " +
+  "https://docs.stripe.com/search#search-query-language .";
 
 export const CATALOG_DOC_MD =
-  "# VGI stripe worker\n\n" +
-  "**An example [VGI](https://query.farm/vgi) worker that brings custom functions into DuckDB " +
-  "SQL.** It was generated from the Query.Farm starter template and is meant to be renamed and " +
-  "rewritten: every function here demonstrates one pattern you will reuse, from vectorized scalars " +
-  "and streaming table functions to a REST API reader that retries politely and reads a bearer " +
-  "token from a DuckDB secret or the environment.\n\n" +
-  "The worker speaks Apache Arrow to DuckDB over stdin/stdout, a Unix socket, or HTTP, so the " +
-  "same code runs as a local subprocess or a hosted service. See the " +
-  "[VGI documentation](https://query.farm/vgi/docs/) to learn more.";
+  "# Stripe\n\n" +
+  "Query a Stripe account from DuckDB: charges, PaymentIntents, refunds, disputes, balance transactions, payouts, " +
+  "customers, invoices, subscriptions, the product catalog, Connect transfers and the event feed. Read-only.\n\n" +
+  "Create a `stripe` secret with an API key — a **restricted key** with read permissions is recommended. Filters " +
+  "on time ranges, ids, status and type become Stripe list parameters; filters only Stripe Search understands " +
+  "use the Search API. Amounts come both as Stripe's minor-unit integers and as exact decimals. Pagination, " +
+  "rate limits (429 + `Stripe-Should-Retry`) and Connect (`Stripe-Account`) are handled for you. Stripe Sigma " +
+  "is not exposed by the API, so it is not available here.\n\n" +
+  SOURCES_MD;
 
 export const SCHEMA_DOC_LLM =
-  "The `main` schema holds the starter template's example functions, one per common worker " +
-  "pattern. `greet(name)` and `greet(name, style)` are vectorized scalars: use them inside a " +
-  "projection or predicate, one result per row; `style` is a constant that must be 'casual' or " +
-  "'formal'. `sequence_table(count, step := 1)` is a deterministic table function that returns " +
-  "`count` rows of `(n, squared)`; use it for demos, tests, and as a template for generators. " +
-  "`fetch_items(base_url, page_size := 100)` reads every item from a paginated JSON REST API as " +
-  "`(id, name, category, price)` rows, streaming one page per batch, retrying rate-limited " +
-  "requests, and authenticating with a `stripe_api` DuckDB secret or the `STRIPE_API_TOKEN` " +
-  "environment variable. Scalars cannot take named arguments; table functions can.";
+  "Stripe API collections as table functions, one per list endpoint (stripe.main.charges(), customers(), " +
+  "invoices(), …). Every function takes the named arguments stripe_account := (read a Connect account) and " +
+  "expand := [...] (raw Stripe expand paths into the raw JSON column); searchable resources (charges, " +
+  "customers, invoices, payment_intents, prices, products, subscriptions) also take search := (a Stripe " +
+  "search query). Child collections (invoice_line_items, subscription_items, payment_methods) take the parent " +
+  "id as a named argument or a pushed `= / IN` filter, and otherwise read every parent. All need a `stripe` secret.";
 
 export const SCHEMA_DOC_MD =
   "## main\n\n" +
-  "The starter template's example functions, one per common worker pattern.\n\n" +
-  "- **Scalars** answer one question per row and slot into a projection or predicate.\n" +
-  "- **Table functions** return sets of rows, streamed to DuckDB in Arrow batches.\n" +
-  "- **REST readers** page through an HTTP API and authenticate with a DuckDB secret.";
+  "Stripe API collections as table functions: payments, balance and payouts, customers, billing, the product " +
+  "catalog, Connect and the event feed.\n\n" +
+  "All functions need a `stripe` secret; time ranges, ids, status and type filters push down to Stripe.";
 
 export const AGENT_TEST_TASKS = [
-  { name: "formal_greeting", prompt: "Using the stripe worker, greet the name 'Grace' formally." },
   {
-    name: "sum_of_squares",
-    prompt:
-      "Using the stripe worker, what is the sum of the squared column for the first 10 rows " +
-      "of the sequence with the default step?",
+    name: "gross_volume_by_currency",
+    prompt: "What is the total amount of succeeded charges per currency, in major units?",
+  },
+  { name: "failed_charges", prompt: "Which charges failed, and with what failure code?" },
+  { name: "refund_total", prompt: "How much has been refunded in total per currency (major units)?" },
+  { name: "open_disputes", prompt: "Which disputes still need a response, and how much is at stake?" },
+  { name: "fees_by_type", prompt: "What are the total Stripe fees per balance transaction type in USD (major units)?" },
+  { name: "paid_payouts", prompt: "List the paid payouts and their arrival dates." },
+  { name: "customer_lookup", prompt: "What is the customer id and name for ada@example.com?" },
+  { name: "expiring_cards", prompt: "Which customers have a saved card that expires in 2026 or earlier?" },
+  { name: "open_invoices", prompt: "Which invoices are open, and how much is still due on each?" },
+  { name: "active_subscriptions", prompt: "How many subscriptions are active or trialing?" },
+  { name: "mrr_prices", prompt: "Which recurring monthly prices exist, with their product names?" },
+  { name: "event_types", prompt: "How many events of each type does the event feed contain?" },
+  { name: "connect_transfers", prompt: "How much was transferred to each connected account?" },
+];
+
+/** Bind-only probes: each binds the function and shows its columns without fetching (LIMIT 0). */
+export const EXECUTABLE_EXAMPLES = [
+  {
+    name: "charges_columns",
+    description: "The charges() result columns (binds only; create a stripe secret and drop LIMIT 0 for rows)",
+    sql: "SELECT id, amount, amount_decimal, currency, status, created FROM stripe.main.charges() LIMIT 0",
   },
   {
-    name: "stepped_sequence",
-    prompt: "List the n values of a 4-row sequence that steps by 5, in ascending order.",
-  },
-  {
-    name: "items_per_category",
-    prompt:
-      "The items API is running at https://vgi-starter-api.query-farm.services/v1. How many items does it have in each category?",
+    name: "balance_transactions_columns",
+    description:
+      "The balance_transactions() result columns (binds only; create a stripe secret and drop LIMIT 0 for rows)",
+    sql: "SELECT id, type, amount, fee, net, available_on FROM stripe.main.balance_transactions() LIMIT 0",
   },
 ];
 
 export const CATALOG_TAGS: Record<string, string> = {
-  "vgi.title": "VGI Stripe Worker",
-  "vgi.subtitle": "Example DuckDB functions to rename and replace: a scalar, a table function and a REST API reader.",
+  "vgi.title": "Stripe",
+  "vgi.subtitle": "Stripe payments, billing, customers, payouts, Connect and events as SQL tables.",
   "vgi.doc_llm": CATALOG_DOC_LLM,
   "vgi.doc_md": CATALOG_DOC_MD,
   "vgi.source_url": SOURCE_URL,
   "vgi.icon_url": "https://query.farm/media-kit/products/vgi/vgi-logo.png",
   "vgi.license": "0BSD",
-  "vgi.author": "Query.Farm",
-  "vgi.copyright": "Copyright 2026 Query.Farm LLC",
-  "vgi.keywords": keywordsArray("vgi, duckdb, starter template, example worker, rest api, table function"),
+  "vgi.author": "Query Farm LLC",
+  "vgi.copyright": "Copyright 2026 Query Farm LLC - https://query.farm",
+  "vgi.keywords": keywordsArray(
+    "stripe, payments, charges, payment intents, refunds, disputes, payouts, balance, customers, invoices, subscriptions, billing, connect, events, finance, revenue",
+  ),
   "vgi.support_contact": `${SOURCE_URL}/issues`,
   "vgi.support_policy_url": `${SOURCE_URL}#support`,
   // Public analyst tasks for `vgi-lint simulate`; private graders live in vgi-agent-tests.yaml.
   "vgi.agent_test_tasks": JSON.stringify(AGENT_TEST_TASKS),
+  "vgi.executable_examples": JSON.stringify(EXECUTABLE_EXAMPLES),
 };
 
 export const SCHEMA_TAGS: Record<string, string> = {
-  "vgi.title": "Stripe Functions",
-  domain: "examples",
-  "vgi.keywords": keywordsArray("greeting, sequence, generator, rest api, pagination"),
+  "vgi.title": "Stripe API",
+  domain: "payments",
+  "vgi.keywords": keywordsArray(
+    "stripe, charges, customers, invoices, subscriptions, payouts, balance transactions, events",
+  ),
   "vgi.doc_llm": SCHEMA_DOC_LLM,
   "vgi.doc_md": SCHEMA_DOC_MD,
   "vgi.categories": JSON.stringify(SCHEMA_CATEGORIES),

@@ -66,18 +66,15 @@ jobs:
         run: |
           if [ "$RUNNER_OS" = "Windows" ]; then
             # DuckDB can't exec the sh wrappers in bin/ on Windows, so compile
-            # the worker and the recipe runner into standalone executables.
+            # the worker into a standalone executable.
             bun build src/worker.ts --compile --outfile dist/vgi-stripe-worker.exe
-            bun build examples/run.ts --compile --outfile dist/run-recipe.exe
             WORKER="$(cygpath -m "$PWD/dist/vgi-stripe-worker.exe")"
-            RECIPES_WORKER="$(cygpath -m "$PWD/dist/run-recipe.exe")"
             HAYBARN_UNITTEST="$PWD/.tools/Scripts/haybarn-unittest.exe"
           else
             WORKER="$PWD/bin/vgi-stripe-worker"
-            RECIPES_WORKER="$PWD/bin/run-recipe"
             HAYBARN_UNITTEST="$PWD/.tools/bin/haybarn-unittest"
           fi
-          export WORKER RECIPES_WORKER HAYBARN_UNITTEST
+          export WORKER HAYBARN_UNITTEST
           TRANSPORT=${{ matrix.transport }} PYTHON="uv run --no-project python" ci/run-integration.sh
 
   metadata:
@@ -95,8 +92,11 @@ jobs:
           location: ${{ github.workspace }}/bin/vgi-stripe-worker
           # Set in vgi-lint.toml, so local runs and CI agree.
           fail-on: ${{ steps.lintcfg.outputs.fail_on }}
-          # Set to false if your examples need real credentials or network access.
-          execute: true
+          # Every function (stripe.main.charges, customers, invoices, balance_transactions, ...)
+          # needs a `stripe` secret holding a real Stripe API key (API_KEY, a restricted rk_... key)
+          # for a live Stripe account, which CI does not have. The SQL tests cover behaviour
+          # offline against the replay server in test/mock_api.
+          execute: "false"
 
   docker:
     name: Docker image smoke test

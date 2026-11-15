@@ -1,0 +1,3148 @@
+{
+ "api_version": "2026-09-30.endive",
+ "objects": {
+  "account": [
+   "business_profile",
+   "business_type",
+   "capabilities",
+   "charges_enabled",
+   "company",
+   "controller",
+   "country",
+   "created",
+   "default_currency",
+   "details_submitted",
+   "email",
+   "external_accounts",
+   "future_requirements",
+   "groups",
+   "id",
+   "individual",
+   "metadata",
+   "object",
+   "payouts_enabled",
+   "requirements",
+   "settings",
+   "tos_acceptance",
+   "type"
+  ],
+  "application_fee": [
+   "account",
+   "amount",
+   "amount_refunded",
+   "application",
+   "balance_transaction",
+   "charge",
+   "created",
+   "currency",
+   "fee_source",
+   "id",
+   "livemode",
+   "object",
+   "originating_transaction",
+   "refunded",
+   "refunds"
+  ],
+  "balance": [
+   "available",
+   "connect_reserved",
+   "instant_available",
+   "issuing",
+   "livemode",
+   "object",
+   "pending",
+   "refund_and_dispute_prefunding"
+  ],
+  "balance_transaction": [
+   "amount",
+   "available_on",
+   "balance_type",
+   "created",
+   "currency",
+   "description",
+   "exchange_rate",
+   "fee",
+   "fee_details",
+   "id",
+   "net",
+   "object",
+   "reporting_category",
+   "source",
+   "status",
+   "type"
+  ],
+  "billing.meter": [
+   "created",
+   "customer_mapping",
+   "default_aggregation",
+   "display_name",
+   "event_name",
+   "event_time_window",
+   "id",
+   "livemode",
+   "object",
+   "status",
+   "status_transitions",
+   "updated",
+   "value_settings"
+  ],
+  "billing.meter_event_summary": [
+   "aggregated_value",
+   "end_time",
+   "id",
+   "livemode",
+   "meter",
+   "object",
+   "start_time"
+  ],
+  "charge": [
+   "amount",
+   "amount_captured",
+   "amount_refunded",
+   "application",
+   "application_fee",
+   "application_fee_amount",
+   "balance_transaction",
+   "billing_details",
+   "calculated_statement_descriptor",
+   "captured",
+   "created",
+   "currency",
+   "customer",
+   "description",
+   "disputed",
+   "failure_balance_transaction",
+   "failure_code",
+   "failure_message",
+   "fraud_details",
+   "id",
+   "livemode",
+   "metadata",
+   "object",
+   "on_behalf_of",
+   "outcome",
+   "paid",
+   "payment_intent",
+   "payment_method",
+   "payment_method_details",
+   "presentment_details",
+   "radar_options",
+   "receipt_email",
+   "receipt_number",
+   "receipt_url",
+   "refunded",
+   "refunds",
+   "review",
+   "shipping",
+   "source_transfer",
+   "statement_descriptor",
+   "statement_descriptor_suffix",
+   "status",
+   "transfer",
+   "transfer_data",
+   "transfer_group"
+  ],
+  "checkout.session": [
+   "adaptive_pricing",
+   "after_expiration",
+   "allow_promotion_codes",
+   "allowed_payment_method_types",
+   "amount_subtotal",
+   "amount_total",
+   "automatic_tax",
+   "billing_address_collection",
+   "branding_settings",
+   "cancel_url",
+   "client_reference_id",
+   "client_secret",
+   "collected_information",
+   "consent",
+   "consent_collection",
+   "created",
+   "currency",
+   "currency_conversion",
+   "custom_fields",
+   "custom_text",
+   "customer",
+   "customer_account",
+   "customer_creation",
+   "customer_details",
+   "customer_email",
+   "discounts",
+   "excluded_payment_method_types",
+   "expires_at",
+   "id",
+   "integration_identifier",
+   "invoice",
+   "invoice_creation",
+   "line_items",
+   "livemode",
+   "locale",
+   "managed_payments",
+   "metadata",
+   "mode",
+   "name_collection",
+   "object",
+   "optional_items",
+   "origin_context",
+   "payment_intent",
+   "payment_link",
+   "payment_method_collection",
+   "payment_method_configuration_details",
+   "payment_method_options",
+   "payment_method_types",
+   "payment_status",
+   "permissions",
+   "phone_number_collection",
+   "presentment_details",
+   "recovered_from",
+   "redirect_on_completion",
+   "return_url",
+   "saved_payment_method_options",
+   "setup_intent",
+   "shipping_address_collection",
+   "shipping_cost",
+   "shipping_options",
+   "status",
+   "submit_type",
+   "subscription",
+   "success_url",
+   "tax_id_collection",
+   "total_details",
+   "ui_mode",
+   "url",
+   "wallet_options"
+  ],
+  "coupon": [
+   "amount_off",
+   "applies_to",
+   "created",
+   "currency",
+   "currency_options",
+   "duration",
+   "duration_in_months",
+   "id",
+   "livemode",
+   "max_redemptions",
+   "metadata",
+   "name",
+   "object",
+   "percent_off",
+   "redeem_by",
+   "times_redeemed",
+   "valid"
+  ],
+  "credit_note": [
+   "amount",
+   "amount_shipping",
+   "created",
+   "currency",
+   "customer",
+   "customer_account",
+   "customer_balance_transaction",
+   "discount_amount",
+   "discount_amounts",
+   "effective_at",
+   "id",
+   "invoice",
+   "lines",
+   "livemode",
+   "memo",
+   "metadata",
+   "number",
+   "object",
+   "out_of_band_amount",
+   "pdf",
+   "post_payment_amount",
+   "pre_payment_amount",
+   "pretax_credit_amounts",
+   "reason",
+   "refunds",
+   "shipping_cost",
+   "status",
+   "subtotal",
+   "subtotal_excluding_tax",
+   "total",
+   "total_excluding_tax",
+   "total_taxes",
+   "type",
+   "voided_at"
+  ],
+  "customer": [
+   "address",
+   "balance",
+   "business_name",
+   "cash_balance",
+   "created",
+   "currency",
+   "customer_account",
+   "default_source",
+   "delinquent",
+   "description",
+   "discount",
+   "email",
+   "id",
+   "individual_name",
+   "invoice_credit_balance",
+   "invoice_prefix",
+   "invoice_settings",
+   "livemode",
+   "metadata",
+   "name",
+   "next_invoice_sequence",
+   "object",
+   "phone",
+   "preferred_locales",
+   "shipping",
+   "sources",
+   "subscriptions",
+   "tax",
+   "tax_exempt",
+   "tax_ids",
+   "test_clock"
+  ],
+  "dispute": [
+   "amount",
+   "balance_transactions",
+   "charge",
+   "created",
+   "currency",
+   "enhanced_eligibility_types",
+   "evidence",
+   "evidence_details",
+   "id",
+   "is_charge_refundable",
+   "livemode",
+   "metadata",
+   "object",
+   "payment_intent",
+   "payment_method_details",
+   "reason",
+   "status"
+  ],
+  "event": [
+   "account",
+   "api_version",
+   "context",
+   "created",
+   "data",
+   "id",
+   "livemode",
+   "object",
+   "pending_webhooks",
+   "request",
+   "type"
+  ],
+  "file": [
+   "created",
+   "expires_at",
+   "filename",
+   "id",
+   "links",
+   "object",
+   "purpose",
+   "size",
+   "title",
+   "type",
+   "url"
+  ],
+  "invoice": [
+   "account_country",
+   "account_name",
+   "account_tax_ids",
+   "amount_due",
+   "amount_overpaid",
+   "amount_paid",
+   "amount_paid_off_stripe",
+   "amount_remaining",
+   "amount_shipping",
+   "application",
+   "attempt_count",
+   "attempted",
+   "auto_advance",
+   "automatic_tax",
+   "automatically_finalizes_at",
+   "billing_reason",
+   "collection_method",
+   "confirmation_secret",
+   "created",
+   "currency",
+   "custom_fields",
+   "customer",
+   "customer_account",
+   "customer_address",
+   "customer_email",
+   "customer_name",
+   "customer_phone",
+   "customer_shipping",
+   "customer_tax_exempt",
+   "customer_tax_ids",
+   "default_payment_method",
+   "default_source",
+   "default_tax_rates",
+   "description",
+   "discounts",
+   "due_date",
+   "effective_at",
+   "ending_balance",
+   "footer",
+   "from_invoice",
+   "hosted_invoice_url",
+   "id",
+   "invoice_pdf",
+   "issuer",
+   "last_finalization_error",
+   "latest_revision",
+   "lines",
+   "livemode",
+   "metadata",
+   "next_payment_attempt",
+   "number",
+   "object",
+   "on_behalf_of",
+   "parent",
+   "payment_settings",
+   "payments",
+   "period_end",
+   "period_start",
+   "post_payment_credit_notes_amount",
+   "pre_payment_credit_notes_amount",
+   "receipt_number",
+   "rendering",
+   "shipping_cost",
+   "shipping_details",
+   "starting_balance",
+   "statement_descriptor",
+   "status",
+   "status_details",
+   "status_transitions",
+   "subtotal",
+   "subtotal_excluding_tax",
+   "test_clock",
+   "threshold_reason",
+   "total",
+   "total_discount_amounts",
+   "total_excluding_tax",
+   "total_pretax_credit_amounts",
+   "total_taxes",
+   "webhooks_delivered_at"
+  ],
+  "invoiceitem": [
+   "amount",
+   "currency",
+   "customer",
+   "customer_account",
+   "date",
+   "description",
+   "discountable",
+   "discounts",
+   "frozen_fields",
+   "id",
+   "invoice",
+   "invoicing_rules",
+   "livemode",
+   "metadata",
+   "net_amount",
+   "object",
+   "parent",
+   "period",
+   "pricing",
+   "proration",
+   "proration_details",
+   "quantity",
+   "quantity_decimal",
+   "tax_rates",
+   "test_clock"
+  ],
+  "line_item": [
+   "amount",
+   "currency",
+   "description",
+   "discount_amounts",
+   "discountable",
+   "discounts",
+   "id",
+   "invoice",
+   "livemode",
+   "metadata",
+   "object",
+   "parent",
+   "period",
+   "pretax_credit_amounts",
+   "pricing",
+   "quantity",
+   "quantity_decimal",
+   "subscription",
+   "subtotal",
+   "taxes"
+  ],
+  "payment_intent": [
+   "allowed_payment_method_types",
+   "amount",
+   "amount_capturable",
+   "amount_details",
+   "amount_received",
+   "application",
+   "application_fee_amount",
+   "automatic_payment_methods",
+   "canceled_at",
+   "cancellation_reason",
+   "capture_method",
+   "client_secret",
+   "confirmation_method",
+   "created",
+   "currency",
+   "customer",
+   "customer_account",
+   "description",
+   "excluded_payment_method_types",
+   "hooks",
+   "id",
+   "last_payment_error",
+   "latest_charge",
+   "livemode",
+   "managed_payments",
+   "metadata",
+   "next_action",
+   "object",
+   "on_behalf_of",
+   "payment_details",
+   "payment_method",
+   "payment_method_configuration_details",
+   "payment_method_options",
+   "payment_method_types",
+   "payment_record",
+   "presentment_details",
+   "processing",
+   "receipt_email",
+   "review",
+   "setup_future_usage",
+   "shipping",
+   "statement_descriptor",
+   "statement_descriptor_suffix",
+   "status",
+   "transfer_data",
+   "transfer_group"
+  ],
+  "payment_method": [
+   "acss_debit",
+   "affirm",
+   "afterpay_clearpay",
+   "alipay",
+   "allow_redisplay",
+   "alma",
+   "amazon_pay",
+   "au_becs_debit",
+   "bacs_debit",
+   "bancontact",
+   "billie",
+   "billing_details",
+   "bizum",
+   "blik",
+   "boleto",
+   "card",
+   "card_present",
+   "cashapp",
+   "created",
+   "crypto",
+   "custom",
+   "customer",
+   "customer_account",
+   "customer_balance",
+   "eps",
+   "fpx",
+   "giropay",
+   "grabpay",
+   "id",
+   "ideal",
+   "interac_present",
+   "kakao_pay",
+   "klarna",
+   "konbini",
+   "kr_card",
+   "link",
+   "livemode",
+   "mb_way",
+   "metadata",
+   "mobilepay",
+   "multibanco",
+   "naver_pay",
+   "nz_bank_account",
+   "object",
+   "oxxo",
+   "p24",
+   "pay_by_bank",
+   "payco",
+   "paynow",
+   "paypal",
+   "paypay",
+   "payto",
+   "pix",
+   "promptpay",
+   "radar_options",
+   "revolut_pay",
+   "samsung_pay",
+   "satispay",
+   "scalapay",
+   "sepa_debit",
+   "sequra",
+   "sofort",
+   "sunbit",
+   "swish",
+   "twint",
+   "type",
+   "upi",
+   "us_bank_account",
+   "wechat_pay",
+   "zip"
+  ],
+  "payout": [
+   "amount",
+   "application_fee",
+   "application_fee_amount",
+   "arrival_date",
+   "automatic",
+   "balance_transaction",
+   "created",
+   "currency",
+   "description",
+   "destination",
+   "failure_balance_transaction",
+   "failure_code",
+   "failure_message",
+   "id",
+   "livemode",
+   "metadata",
+   "method",
+   "object",
+   "original_payout",
+   "payout_method",
+   "reconciliation_status",
+   "reversed_by",
+   "source_type",
+   "statement_descriptor",
+   "status",
+   "trace_id",
+   "type"
+  ],
+  "price": [
+   "active",
+   "billing_scheme",
+   "created",
+   "currency",
+   "currency_options",
+   "custom_unit_amount",
+   "id",
+   "livemode",
+   "lookup_key",
+   "metadata",
+   "nickname",
+   "object",
+   "product",
+   "recurring",
+   "tax_behavior",
+   "tiers",
+   "tiers_mode",
+   "transform_quantity",
+   "type",
+   "unit_amount",
+   "unit_amount_decimal"
+  ],
+  "product": [
+   "active",
+   "created",
+   "default_price",
+   "description",
+   "id",
+   "images",
+   "livemode",
+   "marketing_features",
+   "metadata",
+   "name",
+   "object",
+   "package_dimensions",
+   "shippable",
+   "statement_descriptor",
+   "tax_code",
+   "tax_details",
+   "unit_label",
+   "updated",
+   "url"
+  ],
+  "promotion_code": [
+   "active",
+   "code",
+   "created",
+   "customer",
+   "customer_account",
+   "expires_at",
+   "id",
+   "livemode",
+   "max_redemptions",
+   "metadata",
+   "object",
+   "promotion",
+   "restrictions",
+   "times_redeemed"
+  ],
+  "radar.early_fraud_warning": [
+   "actionable",
+   "charge",
+   "created",
+   "fraud_type",
+   "id",
+   "livemode",
+   "object",
+   "payment_intent"
+  ],
+  "refund": [
+   "amount",
+   "balance_transaction",
+   "charge",
+   "created",
+   "currency",
+   "customer",
+   "customer_account",
+   "description",
+   "destination_details",
+   "failure_balance_transaction",
+   "failure_reason",
+   "id",
+   "instructions_email",
+   "metadata",
+   "next_action",
+   "object",
+   "payment_intent",
+   "payment_method",
+   "pending_reason",
+   "presentment_details",
+   "reason",
+   "receipt_number",
+   "source_transfer_reversal",
+   "status",
+   "transfer_reversal"
+  ],
+  "subscription": [
+   "application",
+   "application_fee_percent",
+   "automatic_tax",
+   "billing_cycle_anchor",
+   "billing_cycle_anchor_config",
+   "billing_mode",
+   "billing_schedules",
+   "billing_thresholds",
+   "cancel_at",
+   "cancel_at_period_end",
+   "canceled_at",
+   "cancellation_details",
+   "collection_method",
+   "created",
+   "currency",
+   "customer",
+   "customer_account",
+   "days_until_due",
+   "default_payment_method",
+   "default_source",
+   "default_tax_rates",
+   "description",
+   "discounts",
+   "ended_at",
+   "id",
+   "invoice_settings",
+   "items",
+   "latest_invoice",
+   "livemode",
+   "managed_payments",
+   "metadata",
+   "next_pending_invoice_item_invoice",
+   "object",
+   "on_behalf_of",
+   "pause_collection",
+   "payment_settings",
+   "pending_invoice_item_interval",
+   "pending_setup_intent",
+   "pending_update",
+   "presentment_details",
+   "schedule",
+   "start_date",
+   "status",
+   "status_details",
+   "test_clock",
+   "transfer_data",
+   "trial_end",
+   "trial_settings",
+   "trial_start"
+  ],
+  "subscription_item": [
+   "billed_until",
+   "billing_thresholds",
+   "created",
+   "current_period_end",
+   "current_period_start",
+   "current_trial",
+   "discounts",
+   "id",
+   "metadata",
+   "object",
+   "price",
+   "quantity",
+   "subscription",
+   "tax_rates"
+  ],
+  "subscription_schedule": [
+   "application",
+   "billing_mode",
+   "canceled_at",
+   "completed_at",
+   "created",
+   "current_phase",
+   "customer",
+   "customer_account",
+   "default_settings",
+   "end_behavior",
+   "id",
+   "livemode",
+   "metadata",
+   "object",
+   "pause_schedules",
+   "phases",
+   "released_at",
+   "released_subscription",
+   "status",
+   "subscription",
+   "test_clock"
+  ],
+  "tax_rate": [
+   "active",
+   "country",
+   "created",
+   "description",
+   "display_name",
+   "effective_percentage",
+   "flat_amount",
+   "id",
+   "inclusive",
+   "jurisdiction",
+   "jurisdiction_level",
+   "livemode",
+   "metadata",
+   "object",
+   "percentage",
+   "rate_type",
+   "state",
+   "tax_type"
+  ],
+  "transfer": [
+   "amount",
+   "amount_reversed",
+   "balance_transaction",
+   "created",
+   "currency",
+   "description",
+   "destination",
+   "destination_payment",
+   "id",
+   "livemode",
+   "metadata",
+   "object",
+   "reversals",
+   "reversed",
+   "source_transaction",
+   "source_type",
+   "transfer_group"
+  ],
+  "webhook_endpoint": [
+   "api_version",
+   "application",
+   "created",
+   "description",
+   "enabled_events",
+   "id",
+   "livemode",
+   "metadata",
+   "object",
+   "secret",
+   "status",
+   "url"
+  ]
+ },
+ "paths": {
+  "/v1/accounts": {
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/application_fees": {
+   "charge": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/balance": {
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   }
+  },
+  "/v1/balance_transactions": {
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "currency": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "payout": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "source": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "type": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/billing/meters": {
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "status": {
+    "enum": [
+     "active",
+     "inactive"
+    ],
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/billing/meters/{id}/event_summaries": {
+   "customer": {
+    "in": "query",
+    "required": true,
+    "types": [
+     "string"
+    ]
+   },
+   "end_time": {
+    "in": "query",
+    "required": true,
+    "types": [
+     "integer"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "id": {
+    "in": "path",
+    "required": true,
+    "types": [
+     "string"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "start_time": {
+    "in": "query",
+    "required": true,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "value_grouping_window": {
+    "enum": [
+     "day",
+     "hour"
+    ],
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/charges": {
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "customer": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "payment_intent": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "transfer_group": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/charges/search": {
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "page": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "query": {
+    "in": "query",
+    "required": true,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/checkout/sessions": {
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "customer": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "customer_account": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "customer_details": {
+    "in": "query",
+    "keys": [
+     "email"
+    ],
+    "required": false,
+    "types": [
+     "object"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "payment_intent": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "payment_link": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "status": {
+    "enum": [
+     "complete",
+     "expired",
+     "open"
+    ],
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "subscription": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/coupons": {
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/credit_notes": {
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "customer": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "customer_account": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "invoice": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/customers": {
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "email": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "test_clock": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/customers/search": {
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "page": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "query": {
+    "in": "query",
+    "required": true,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/customers/{customer}/payment_methods": {
+   "allow_redisplay": {
+    "enum": [
+     "always",
+     "limited",
+     "unspecified"
+    ],
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "customer": {
+    "in": "path",
+    "required": true,
+    "types": [
+     "string"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "type": {
+    "enum": [
+     "acss_debit",
+     "affirm",
+     "afterpay_clearpay",
+     "alipay",
+     "alma",
+     "amazon_pay",
+     "au_becs_debit",
+     "bacs_debit",
+     "bancontact",
+     "billie",
+     "bizum",
+     "blik",
+     "boleto",
+     "card",
+     "cashapp",
+     "crypto",
+     "custom",
+     "customer_balance",
+     "eps",
+     "fpx",
+     "giropay",
+     "grabpay",
+     "ideal",
+     "kakao_pay",
+     "klarna",
+     "konbini",
+     "kr_card",
+     "link",
+     "mb_way",
+     "mobilepay",
+     "multibanco",
+     "naver_pay",
+     "nz_bank_account",
+     "oxxo",
+     "p24",
+     "pay_by_bank",
+     "payco",
+     "paynow",
+     "paypal",
+     "paypay",
+     "payto",
+     "pix",
+     "promptpay",
+     "revolut_pay",
+     "samsung_pay",
+     "satispay",
+     "scalapay",
+     "sepa_debit",
+     "sequra",
+     "sofort",
+     "sunbit",
+     "swish",
+     "twint",
+     "upi",
+     "us_bank_account",
+     "wechat_pay",
+     "zip"
+    ],
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/disputes": {
+   "charge": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "payment_intent": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/events": {
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "delivery_success": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "boolean"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "type": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "types": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   }
+  },
+  "/v1/files": {
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "purpose": {
+    "enum": [
+     "account_requirement",
+     "additional_verification",
+     "business_icon",
+     "business_logo",
+     "customer_signature",
+     "dispute_evidence",
+     "document_provider_identity_document",
+     "finance_report_run",
+     "financial_account_statement",
+     "identity_document",
+     "identity_document_downloadable",
+     "issuing_regulatory_reporting",
+     "pci_document",
+     "platform_terms_of_service",
+     "selfie",
+     "sigma_scheduled_query",
+     "tax_document_user_upload",
+     "terminal_android_apk",
+     "terminal_reader_splashscreen",
+     "terminal_wifi_certificate",
+     "terminal_wifi_private_key"
+    ],
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/invoiceitems": {
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "customer": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "customer_account": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "invoice": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "pending": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "boolean"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/invoices": {
+   "collection_method": {
+    "enum": [
+     "charge_automatically",
+     "send_invoice"
+    ],
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "customer": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "customer_account": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "due_date": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "status": {
+    "enum": [
+     "draft",
+     "open",
+     "paid",
+     "uncollectible",
+     "void"
+    ],
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "subscription": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/invoices/search": {
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "page": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "query": {
+    "in": "query",
+    "required": true,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/invoices/{invoice}/lines": {
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "invoice": {
+    "in": "path",
+    "required": true,
+    "types": [
+     "string"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/payment_intents": {
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "customer": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "customer_account": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/payment_intents/search": {
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "page": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "query": {
+    "in": "query",
+    "required": true,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/payouts": {
+   "arrival_date": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "destination": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "status": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/prices": {
+   "active": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "boolean"
+    ]
+   },
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "currency": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "lookup_keys": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "product": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "recurring": {
+    "in": "query",
+    "keys": [
+     "interval",
+     "meter",
+     "usage_type"
+    ],
+    "required": false,
+    "types": [
+     "object"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "type": {
+    "enum": [
+     "one_time",
+     "recurring"
+    ],
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/prices/search": {
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "page": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "query": {
+    "in": "query",
+    "required": true,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/products": {
+   "active": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "boolean"
+    ]
+   },
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "ids": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "shippable": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "boolean"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "url": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/products/search": {
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "page": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "query": {
+    "in": "query",
+    "required": true,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/promotion_codes": {
+   "active": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "boolean"
+    ]
+   },
+   "code": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "coupon": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "customer": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "customer_account": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/radar/early_fraud_warnings": {
+   "charge": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "payment_intent": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/refunds": {
+   "charge": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "payment_intent": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/subscription_items": {
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "subscription": {
+    "in": "query",
+    "required": true,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/subscription_schedules": {
+   "canceled_at": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "completed_at": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "customer": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "customer_account": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "released_at": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "scheduled": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "boolean"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/subscriptions": {
+   "automatic_tax": {
+    "in": "query",
+    "keys": [
+     "enabled"
+    ],
+    "required": false,
+    "types": [
+     "object"
+    ]
+   },
+   "collection_method": {
+    "enum": [
+     "charge_automatically",
+     "send_invoice"
+    ],
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "current_period_end": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "current_period_start": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "customer": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "customer_account": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "price": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "status": {
+    "enum": [
+     "active",
+     "all",
+     "canceled",
+     "ended",
+     "incomplete",
+     "incomplete_expired",
+     "past_due",
+     "paused",
+     "trialing",
+     "unpaid"
+    ],
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "test_clock": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/subscriptions/search": {
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "page": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "query": {
+    "in": "query",
+    "required": true,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/tax_rates": {
+   "active": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "boolean"
+    ]
+   },
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "inclusive": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "boolean"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/transfers": {
+   "created": {
+    "in": "query",
+    "keys": [
+     "gt",
+     "gte",
+     "lt",
+     "lte"
+    ],
+    "required": false,
+    "types": [
+     "integer",
+     "object"
+    ]
+   },
+   "destination": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "transfer_group": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  },
+  "/v1/webhook_endpoints": {
+   "ending_before": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   },
+   "expand": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "array"
+    ]
+   },
+   "limit": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "integer"
+    ]
+   },
+   "starting_after": {
+    "in": "query",
+    "required": false,
+    "types": [
+     "string"
+    ]
+   }
+  }
+ },
+ "source": "https://github.com/stripe/openapi (MIT)"
+}
