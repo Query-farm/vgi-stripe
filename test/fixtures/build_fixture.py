@@ -4,7 +4,7 @@
     python3 test/fixtures/build_fixture.py > test/fixtures/stripe-account.json
 
 Every object uses only fields that exist in Stripe's OpenAPI spec for its type (the
-replay server checks this against stripe-openapi-subset.json at start-up), in the
+replay server checks this against spec/stripe-openapi/spec3.json at start-up), in the
 shapes of API version 2026-09-30 (e.g. an invoice's subscription under
 ``parent.subscription_details``, a subscription's period on its items).
 

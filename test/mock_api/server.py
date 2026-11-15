@@ -5,8 +5,17 @@ It serves the account in ``test/fixtures/stripe-account.json`` and behaves like 
 where the worker depends on it:
 
 * **Shapes from the spec.** At start-up every fixture object's fields are checked
-  against Stripe's OpenAPI spec (the trimmed ``stripe-openapi-subset.json``), so the
+  against Stripe's full OpenAPI spec (``spec/stripe-openapi/spec3.json``), so the
   fixtures cannot drift from real Stripe objects.
+* **Every GET endpoint.** Besides the hand-built account (``stripe-account.json``) it
+  serves the generated data in ``stripe-api-account.json`` for every other GET of the
+  spec: lists (with nested lists per parent), retrieve-by-id (404 ``resource_missing``
+  otherwise), sub-objects (a customer's discount …) and singletons. Generic lists filter
+  on every parameter that names a field of the object (ids, enums, booleans, ``ids[]``,
+  time ranges); a documented parameter that names no field is accepted and only recorded.
+* **Products not enabled.** With the key ``rk_test_basic`` the Issuing, Treasury,
+  Terminal, Identity and Climate endpoints answer the way Stripe does for an account
+  without those products (HTTP 400 "not set up to use …").
 * **Auth.** ``Authorization: Bearer rk_test_fixture`` (restricted, read-only) or
   ``sk_test_fixture``; ``rk_test_nopayouts`` is a restricted key without the payouts
   permission (403). Anything else gets Stripe's 401. ``Stripe-Version`` must look like
@@ -27,7 +36,7 @@ where the worker depends on it:
   ``page`` / ``next_page`` tokens. Pages hold at most ``--page-cap`` objects (default 3)
   so every scan crosses page boundaries, as Stripe may return fewer than ``limit``.
 * **Expansion.** ``expand[]=data.<field>[.<field>…]`` replaces ids with the objects.
-* **Rate limits and errors.** The first ``/v1/disputes`` request answers 429 and the
+* **Rate limits and errors.** With the key ``rk_test_fixture``, the first ``/v1/disputes`` request answers 429 and the
   first ``/v1/payouts`` request 500, both with ``Stripe-Should-Retry: true``; the first
   ``/v1/files`` request answers 503 with ``Stripe-Should-Retry: false`` (must not be
   retried).
@@ -56,9 +65,49 @@ from urllib.parse import parse_qsl, urlparse
 HERE = Path(__file__).resolve().parent
 FIXTURES = HERE.parent / "fixtures"
 ACCOUNT = json.loads((FIXTURES / "stripe-account.json").read_text())
-SPEC = json.loads((FIXTURES / "stripe-openapi-subset.json").read_text())
+GEN = json.loads((FIXTURES / "stripe-api-account.json").read_text())
+FULL_SPEC = json.loads((HERE.parent.parent / "spec" / "stripe-openapi" / "spec3.json").read_text())
 
-KEYS = {"rk_test_fixture": set(), "sk_test_fixture": set(), "rk_test_nopayouts": {"/v1/payouts"}}
+
+def _deref(x: dict) -> dict:
+    while isinstance(x, dict) and "$ref" in x:
+        x = FULL_SPEC["components"]["schemas"][x["$ref"].split("/")[-1]]
+    return x
+
+
+def _param_info(p: dict) -> dict:
+    s = p.get("schema", {})
+    info: dict = {"in": p["in"], "required": bool(p.get("required"))}
+    types = []
+    for v in s.get("anyOf", [s]):
+        v = _deref(v)
+        t = v.get("type")
+        types.append(t)
+        if t == "object" and v.get("properties"):
+            info["keys"] = sorted(v["properties"])
+        if v.get("enum"):
+            info["enum"] = v["enum"]
+    info["types"] = sorted({t for t in types if t})
+    return info
+
+
+SPEC = {
+    "paths": {path: {p["name"]: _param_info(p) for p in item["get"].get("parameters", [])}
+              for path, item in FULL_SPEC["paths"].items() if "get" in item},
+    "objects": {name: sorted(sc.get("properties", {})) for name, sc in FULL_SPEC["components"]["schemas"].items()},
+}
+GET_TEMPLATES = [(path, re.compile("^" + re.sub(r"\\\{\w+\\\}", "([^/]+)", re.escape(path)) + "$"))
+                 for path in SPEC["paths"]]
+
+KEYS = {"rk_test_fixture": set(), "sk_test_fixture": set(), "rk_test_nopayouts": {"/v1/payouts"},
+        "rk_test_basic": set()}
+NOT_ENABLED = {
+    "issuing": "Your account is not set up to use Issuing. Please visit https://dashboard.stripe.com/issuing/overview to get started.",
+    "treasury": "Your account is not set up to use Treasury. Please visit https://dashboard.stripe.com/treasury to get started.",
+    "terminal": "Your account is not set up to use Terminal. Please visit https://dashboard.stripe.com/terminal to get started.",
+    "identity": "Your account is not set up to use Identity. Please visit https://dashboard.stripe.com/identity to get started.",
+    "climate": "Your account is not set up to use Climate. Please visit https://dashboard.stripe.com/climate to get started.",
+}
 LOCK = threading.Lock()
 REQUESTS: list[dict] = []
 ONCE: set[str] = set()
@@ -104,6 +153,25 @@ def validate_fixtures() -> None:
     extra = set(ACCOUNT["balance"]) - set(SPEC["objects"]["balance"])
     if extra:
         sys.exit(f"fixture balance: fields not in the Stripe spec: {sorted(extra)}")
+
+    def check_gen(where: str, o: dict) -> None:
+        t = o.get("object")
+        if t in SPEC["objects"]:
+            extra = set(o) - set(SPEC["objects"][t])
+            if extra:
+                sys.exit(f"generated fixture {where}/{o.get('id')}: fields not in the Stripe spec: {sorted(extra)}")
+
+    for path, rows in GEN["lists"].items():
+        for r in rows:
+            check_gen(path, r["obj"])
+    for path, objs in GEN["objects"].items():
+        for o in objs:
+            check_gen(path, o)
+    for path, by in GEN["subs"].items():
+        for o in by.values():
+            check_gen(path, o)
+    for path, o in GEN["singles"].items():
+        check_gen(path, o)
 
 
 # ------------------------------------------------------------------ helpers
@@ -550,6 +618,107 @@ def meter_summaries(meter: str, params: dict, account: str | None) -> dict:
     return paginate(rows, params, f"/v1/billing/meters/{meter}/event_summaries")
 
 
+# ------------------------------------------------------------------ generic (generated) routes
+
+
+def generic_match(o: dict, name: str, val) -> bool:
+    """Filter one object by a parameter that names one of its fields (True when it names none)."""
+    if name == "status" and val == "all":
+        return True
+    if name == "ids" and isinstance(val, list):
+        return o.get("id") in val
+    field = name
+    if isinstance(val, list):
+        field = name[:-1] if name.endswith("s") and name[:-1] in o else name
+        if field not in o:
+            return True
+        return id_of(o.get(field)) in val
+    if field not in o:
+        return True
+    actual = o.get(field)
+    if isinstance(val, dict):
+        if set(val) <= {"gt", "gte", "lt", "lte"}:
+            return range_match(actual, val, name)
+        return True
+    if isinstance(actual, bool):
+        return actual is to_bool(val, name)
+    if isinstance(actual, (int, float)) and not isinstance(actual, bool):
+        return re.fullmatch(r"-?\d+(\.\d+)?", val) is not None and float(val) == actual
+    return id_of(actual) == val
+
+
+def generic_list(template: str, params: dict, account: str | None, parent: str | None, url_path: str) -> dict:
+    rows = GEN["lists"].get(template)
+    if rows is None:
+        raise ApiError(404, "invalid_request_error", f"Unrecognized request URL (GET: {url_path}).")
+    check_spec(template, params, set(SPEC["paths"][template]))
+    if account:
+        rows = []  # the connected account holds none of the generated objects
+    objs = [r["obj"] for r in rows if parent is None or r["parent"] == parent]
+    for name, val in params.items():
+        if name in PAGING or name in ("query",):
+            continue
+        objs = [o for o in objs if generic_match(o, name, val)]
+    objs = newest_first(objs)
+    index = {o["id"]: o for o in objs if "id" in o}
+    index.update(all_objects(account))
+    objs = apply_expand(objs, params, index)
+    if "starting_after" not in SPEC["paths"][template]:
+        return {"object": "list", "data": objs, "has_more": False, "url": url_path}
+    return paginate(objs, params, url_path)
+
+
+def lookup_by_id(list_template: str, obj_id: str, account: str | None):
+    if list_template in LIST_ROUTES:
+        coll = LIST_ROUTES[list_template][0]
+        return next((o for o in collection(account, coll) if o.get("id") == obj_id), None)
+    if list_template == "/v1/customers/{customer}/payment_methods":
+        return next((o for o in collection(account, "payment_methods") if o.get("id") == obj_id), None)
+    if list_template == "/v1/invoices/{invoice}/lines":
+        return next((o for o in collection(account, "invoice_lines") if o.get("id") == obj_id), None)
+    if account:
+        return None
+    for r in GEN["lists"].get(list_template, []):
+        if r["obj"].get("id") == obj_id:
+            return r["obj"]
+    return None
+
+
+def generic_route(path: str, params: dict, account: str | None):
+    """Any spec GET the dedicated routes do not handle."""
+    for template, rx in GET_TEMPLATES:
+        m = rx.match(path)
+        if not m:
+            continue
+        ids = list(m.groups())
+        if template in GEN["singles"]:
+            check_spec(template, params, set(SPEC["paths"][template]))
+            return GEN["singles"][template]
+        if template in GEN["objects"]:
+            check_spec(template, params, set(SPEC["paths"][template]))
+            obj = next((o for o in GEN["objects"][template] if o.get("id") == ids[-1]), None)
+            if obj is None or account:
+                raise ApiError(404, "invalid_request_error", f"No such object: '{ids[-1]}'", "id", "resource_missing")
+            return apply_expand([obj], params, all_objects(account), prefix="")[0]
+        if template in GEN["subs"]:
+            check_spec(template, params, set(SPEC["paths"][template]))
+            obj = None if account else GEN["subs"][template].get(ids[0])
+            if obj is None:
+                raise ApiError(404, "invalid_request_error", f"No such object for '{ids[0]}'", None, "resource_missing")
+            return obj
+        if template in GEN["lists"]:
+            return generic_list(template, params, account, ids[0] if ids else None, path)
+        # retrieve-by-id of a list item: /v1/<list>/{id} (or a nested list's /{parent}/<child>/{id})
+        list_template = re.sub(r"/\{\w+\}$", "", template)
+        if ids and (list_template in SPEC["paths"]):
+            check_spec(template, params, set(SPEC["paths"][template]))
+            obj = lookup_by_id(list_template, ids[-1], account)
+            if obj is None:
+                raise ApiError(404, "invalid_request_error", f"No such object: '{ids[-1]}'", "id", "resource_missing")
+            return apply_expand([obj], params, all_objects(account), prefix="")[0]
+    raise ApiError(404, "invalid_request_error", f"Unrecognized request URL (GET: {path}).")
+
+
 FAULTS = {
     "/v1/disputes": (429, "true", {"type": "invalid_request_error", "code": "rate_limit",
                                    "message": "Too many requests hit the API too quickly."}),
@@ -605,11 +774,14 @@ class Handler(BaseHTTPRequestHandler):
             if account is not None and account not in ACCOUNT["connected"]:
                 raise ApiError(403, "permission_error",
                                f"The provided key does not have access to account '{account}' (or that account does not exist).")
+            family = url.path.split("/")[2] if url.path.count("/") >= 2 else ""
+            if key == "rk_test_basic" and family in NOT_ENABLED:
+                raise ApiError(400, "invalid_request_error", NOT_ENABLED[family])
             if url.path in KEYS[key]:
                 raise ApiError(403, "permission_error",
                                f"The provided key '{key[:8]}****' does not have the required permissions for this endpoint.")
             fault = FAULTS.get(url.path)
-            if fault and url.path not in ONCE:
+            if fault and key == "rk_test_fixture" and url.path not in ONCE:
                 with LOCK:
                     ONCE.add(url.path)
                 status, retry, err = fault
@@ -641,7 +813,7 @@ class Handler(BaseHTTPRequestHandler):
         m = re.fullmatch(r"/v1/billing/meters/([^/]+)/event_summaries", path)
         if m:
             return meter_summaries(m.group(1), params, account)
-        raise ApiError(404, "invalid_request_error", f"Unrecognized request URL (GET: {path}).")
+        return generic_route(path, params, account)
 
 
 def main() -> None:

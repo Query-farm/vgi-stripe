@@ -25,7 +25,38 @@ export const MAX_ATTEMPTS = 6;
 export const MAX_WAIT_MS = 30_000;
 const USER_AGENT = `vgi-stripe-worker/${VERSION}`;
 
-export class StripeError extends Error {}
+export class StripeError extends Error {
+  constructor(
+    message: string,
+    /** HTTP status of a failed request (0 = not an HTTP failure). */
+    readonly status = 0,
+    /** Stripe's `error.code` (e.g. `resource_missing`), when given. */
+    readonly code?: string,
+  ) {
+    super(message);
+  }
+}
+
+/**
+ * Stripe's answers when a product is not enabled on the account (Issuing, Treasury, Connect,
+ * Climate, Identity, Tax …) or the key lacks the permission. Matched on the message, since
+ * Stripe uses several codes and statuses for it.
+ */
+const NOT_ENABLED =
+  /not (yet )?(been )?(enabled|activated|set up|onboarded)|isn't (enabled|set up)|signed up for|sign up for|must (first )?(sign up|apply|enable|activate|be onboarded)|need to (sign up|apply|enable|activate)|does not have access to (this|the) (feature|product|api)|not available (to|for|in) (your|this) account|request access|has not been granted access|is not supported for your account|only available (to|for) (platforms|accounts)/i;
+const PERMISSION = /does not have the required permissions|permission_error|restricted key/i;
+
+/** Turn a feature-not-enabled / missing-permission failure into a clear message. */
+export function featureMessage(path: string, status: number, summary: string): string | undefined {
+  const family = path.replace(/^\/v1\//, "").split("/")[0] ?? path;
+  if ((status === 400 || status === 403 || status === 404) && NOT_ENABLED.test(summary)) {
+    return `stripe: ${family} is not enabled on this Stripe account (GET ${path} failed with HTTP ${status}: ${summary})`;
+  }
+  if (status === 403 && PERMISSION.test(summary)) {
+    return `stripe: the API key has no read permission for ${family} (GET ${path} failed with HTTP 403: ${summary}); grant it Read on the restricted key`;
+  }
+  return undefined;
+}
 
 export interface StripeConfig {
   apiKey: string;
@@ -186,7 +217,13 @@ export async function stripeGet(
       }
     }
     if (!shouldRetry(res.status, res.headers) || attempt >= MAX_ATTEMPTS) {
-      throw new StripeError(`GET ${redact(url)} failed with HTTP ${res.status}: ${await errorSummary(res)}`);
+      const { summary, code } = await errorSummary(res);
+      const friendly = featureMessage(path, res.status, summary);
+      throw new StripeError(
+        friendly ?? `GET ${redact(url)} failed with HTTP ${res.status}: ${summary}`,
+        res.status,
+        code,
+      );
     }
     await res.body?.cancel();
     const delay = retryDelayMs(res.headers, attempt);
@@ -196,16 +233,16 @@ export async function stripeGet(
 }
 
 /** Stripe errors are `{error: {type, code, message, param, request_log_url}}`. */
-async function errorSummary(res: Response): Promise<string> {
+async function errorSummary(res: Response): Promise<{ summary: string; code?: string }> {
   const text = await res.text();
   const reqId = res.headers.get("Request-Id");
   try {
     const j = JSON.parse(text) as { error?: { type?: string; code?: string; message?: string; param?: string } };
     const e = j.error ?? {};
     const parts = [e.type, e.code, e.message, e.param ? `(param: ${e.param})` : undefined, reqId ? `[${reqId}]` : ""];
-    return parts.filter(Boolean).join(" ") || text.slice(0, 300);
+    return { summary: parts.filter(Boolean).join(" ") || text.slice(0, 300), code: e.code };
   } catch {
-    return text.slice(0, 300);
+    return { summary: text.slice(0, 300) };
   }
 }
 

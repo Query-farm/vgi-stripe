@@ -66,7 +66,7 @@ export function keywordsArray(keywords: string): string {
 /** Build the standard per-object discovery tags. */
 export function objectTags(opts: {
   title: string;
-  category: Category;
+  category: Category | string;
   keywords: string;
   docLlm: string;
   docMd: string;
@@ -188,6 +188,10 @@ export const AGENT_TEST_TASKS = [
   },
   { name: "webhook_hosts", prompt: "Which hosts receive Stripe webhooks, and are they enabled?" },
   { name: "dispute_evidence_files", prompt: "Which files were uploaded as dispute evidence?" },
+  {
+    name: "raw_account_object",
+    prompt: "Using the raw Stripe API response for /v1/account, what object type does Stripe report?",
+  },
 ];
 
 /** Bind-only probes: each binds the function and shows its columns without fetching (LIMIT 0). */

@@ -35,7 +35,7 @@ import {
 } from "@query-farm/vgi";
 import { log } from "../log.ts";
 import { type Category, column, objectTags } from "../meta.ts";
-import { configFromSecrets, type QueryValue, type StripeConfig, stripeGet } from "./client.ts";
+import { configFromSecrets, type QueryValue, type StripeConfig, StripeError, stripeGet } from "./client.ts";
 import { AMOUNT_SCALE, minorStringToDecimal, minorToDecimal, UNIT_SCALE } from "./money.ts";
 import {
   boolValue,
@@ -99,17 +99,51 @@ export const asMeta = (v: unknown): Record<string, string> | null => {
   return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, asStr(x) ?? ""]));
 };
 
-/** Keys whose values are credentials and never leave the worker (`raw` column included). */
-const SECRET_KEYS = new Set(["client_secret", "secret"]);
+/**
+ * Keys whose values are credentials (or full account/card numbers) and never leave the worker,
+ * in any column including `raw`. Chosen from every property Stripe's OpenAPI spec documents as
+ * a secret: PaymentIntent/SetupIntent/Checkout/Identity/Financial Connections `client_secret`,
+ * webhook-endpoint and ephemeral-key `secret`, the invoice `confirmation_secret`, Terminal
+ * Wi-Fi `password` / `private_key_file*`, bank-account tokens, Klarna `client_token`, full
+ * `account_number`s (funding instructions, Treasury ABA records; `*_last4` stays) and Identity
+ * `id_number`s.
+ */
+export const SECRET_KEYS = new Set([
+  "client_secret",
+  "secret",
+  "confirmation_secret",
+  "password",
+  "private_key_file",
+  "private_key_file_password",
+  "bank_account_token",
+  "client_token",
+  "account_number",
+  "id_number",
+]);
+
+/**
+ * Keys redacted only on one object type, where the generic name is a credential: an Apps
+ * secret's `payload` (its value), an Issuing card's full `number` and `cvc` (returned only
+ * when expanded), and a file link's `url` (a public, unauthenticated download link).
+ */
+export const OBJECT_SECRET_KEYS: Record<string, ReadonlySet<string>> = {
+  "apps.secret": new Set(["payload"]),
+  "issuing.card": new Set(["number", "cvc"]),
+  file_link: new Set(["url"]),
+};
+
+export const REDACTED = "[redacted]";
 
 /** Deep-copy a Stripe object with credential fields replaced by "[redacted]". */
 export function redactSecrets(v: unknown): unknown {
   if (Array.isArray(v)) return v.map(redactSecrets);
   if (v && typeof v === "object") {
+    const o = v as Record<string, unknown>;
+    const scoped = typeof o.object === "string" ? OBJECT_SECRET_KEYS[o.object] : undefined;
     const out: Record<string, unknown> = {};
-    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+    for (const [k, x] of Object.entries(o)) {
       if (k === "__ctx") continue;
-      out[k] = SECRET_KEYS.has(k) && x != null ? "[redacted]" : redactSecrets(x);
+      out[k] = (SECRET_KEYS.has(k) || scoped?.has(k)) && x != null ? REDACTED : redactSecrets(x);
     }
     return out;
   }
@@ -213,13 +247,15 @@ export interface PhaseRequest {
   query: Record<string, QueryValue>;
   mode: "list" | "search" | "object";
   ctx?: Record<string, string>;
+  /** An object fetch whose 404 (`resource_missing`) means "no row", not an error. */
+  missingOk?: boolean;
 }
 
 export interface StripeTableSpec<A> {
   name: string;
   description: string;
   title: string;
-  category: Category;
+  category: Category | string;
   keywords: string;
   docLlm: string;
   docMd: string;
@@ -250,6 +286,15 @@ export interface StripeTableSpec<A> {
   argConstraints?: Record<string, Record<string, unknown>>;
   /** Override the generic `expand := […]` argument (false for single-object endpoints). */
   rawExpand?: boolean;
+  /**
+   * Retrieve-by-id endpoint (`/v1/charges/{charge}`): a pushed `id = / IN` (up to 25 ids)
+   * reads just those objects instead of listing.
+   */
+  retrieve?: string;
+  /** Whether the list endpoint takes `limit` / `starting_after` (default both). */
+  paging?: { limit: boolean; cursor: boolean };
+  /** Validate the arguments before any request (e.g. required arguments). */
+  check?: (scan: ScanContext<A>) => void;
 }
 
 /**
@@ -264,9 +309,16 @@ export interface Fanout<A> {
   key: string;
   /** Named argument carrying an explicit parent id. */
   arg: string;
-  parent: (scan: ScanContext<A>) => { path: string; query: Record<string, QueryValue> };
-  child: (id: string) => { path: string; query?: Record<string, QueryValue> };
+  /** The parent listing; undefined = no list exists, so an explicit id is required. */
+  parent?: (scan: ScanContext<A>) => { path: string; query: Record<string, QueryValue> };
+  child: (id: string, fromParent?: Record<string, string>) => { path: string; query?: Record<string, QueryValue> };
   embedded?: (parent: Row) => { data: Row[]; hasMore: boolean } | undefined;
+  /** The child is one object, not a list (`/v1/customers/{c}/discount`); a 404 means no row. */
+  object?: boolean;
+  /** Child query parameters copied from each parent row while fanning out (param → parent field). */
+  fromParent?: Record<string, string>;
+  /** Keep the spec's baseQuery (argument-derived parameters) on child requests. */
+  keepBaseQuery?: boolean;
 }
 
 interface ScanState {
@@ -355,6 +407,18 @@ function searchExpressible<A>(spec: StripeTableSpec<A>, c: Constraint): boolean 
 export function planRequests<A extends CommonArgs>(spec: StripeTableSpec<A>, scan: ScanContext<A>): PhaseRequest[] {
   const path = typeof spec.path === "string" ? spec.path : spec.path(scan);
   if (spec.single) return [{ path, query: spec.baseQuery?.(scan) ?? {}, mode: "object" }];
+  if (spec.retrieve && !scan.args.search?.trim()) {
+    const ids = eqValues(scan.constraints, "id");
+    if (ids && ids.length <= MAX_IN_PHASES) {
+      const tpl = spec.retrieve;
+      return [...ids].sort().map((id) => ({
+        path: tpl.replace(/\{\w+\}/, encodeURIComponent(id)),
+        query: {},
+        mode: "object" as const,
+        missingOk: true,
+      }));
+    }
+  }
   const fields = spec.search?.fields ?? {};
   // Search only when it adds a filter the list API cannot express, and the list API
   // is not already narrowing by something Search cannot (payment_intent, payout …).
@@ -392,7 +456,7 @@ export function planRequests<A extends CommonArgs>(spec: StripeTableSpec<A>, sca
 
   const { query, split, empty } = listParams(spec, scan);
   if (empty) return [];
-  query.limit = 100;
+  if (spec.paging?.limit !== false) query.limit = 100;
   if (!split) return [{ path, query, mode: "list" }];
   return split.values.map((v) => ({ path, query: { ...query, [split.param]: v }, mode: "list" }));
 }
@@ -462,6 +526,7 @@ export function defineStripeTable<A extends Record<string, unknown>>(spec: Strip
       const a = params.args as A & CommonArgs;
       const cfg = configFromSecrets(params.secrets, a.stripe_account);
       const scan: ScanContext<A & CommonArgs> = { args: a, constraints: constraintsOf(params.pushdownFilters) };
+      spec.check?.(scan);
       log.debug(`${spec.name}: pushed filters ${formatPushedFilters(params.pushdownFilters)}`);
 
       // Expansions: those the projected columns need, plus the caller's raw paths.
@@ -478,6 +543,8 @@ export function defineStripeTable<A extends Record<string, unknown>>(spec: Strip
 
       const emit = (rows: Row[]): boolean => {
         if (rows.length === 0) return false;
+        // Credentials never reach any column: redact before extraction (keeping the fan-out context).
+        rows = rows.map((r) => ({ ...(redactSecrets(r) as Row), ...(r.__ctx ? { __ctx: r.__ctx } : {}) }));
         const cols: Record<string, unknown[]> = {};
         for (const f of params.outputSchema.fields) {
           const c = columns.find((x) => x.name === f.name);
@@ -491,11 +558,19 @@ export function defineStripeTable<A extends Record<string, unknown>>(spec: Strip
       const page = async (req: PhaseRequest, cursor: string): Promise<{ rows: Row[]; next: string }> => {
         const query: Record<string, QueryValue> = { ...req.query };
         if (req.mode === "object") {
-          const body = await stripeGet(cfg, req.path, query);
+          let body: unknown;
+          try {
+            body = await stripeGet(cfg, req.path, query);
+          } catch (err) {
+            if (req.missingOk && err instanceof StripeError && err.status === 404) return { rows: [], next: "" };
+            throw err;
+          }
+          if (req.ctx) body = { ...(body as Row), __ctx: req.ctx };
           const rows = spec.rows ? spec.rows(body) : [body as Row];
           return { rows: spec.transform ? rows.map(spec.transform) : rows, next: "" };
         }
         if (cursor) query[req.mode === "search" ? "page" : "starting_after"] = cursor;
+        if (req.mode === "list" && spec.paging?.limit === false) delete query.limit;
         const ex = expandParam("data.");
         if (ex) query.expand = ex;
         const body = (await stripeGet(cfg, req.path, query)) as {
@@ -508,7 +583,7 @@ export function defineStripeTable<A extends Record<string, unknown>>(spec: Strip
         const shaped = spec.transform ? data.map(spec.transform) : data;
         const rows = ctx ? shaped.map((r) => ({ ...r, __ctx: ctx })) : shaped;
         let next = "";
-        if (body?.has_more && data.length > 0) {
+        if (body?.has_more && data.length > 0 && (req.mode === "search" || spec.paging?.cursor !== false)) {
           next = req.mode === "search" ? (body.next_page ?? "") : (idOf(data[data.length - 1]) ?? "");
         }
         return { rows, next };
@@ -520,10 +595,28 @@ export function defineStripeTable<A extends Record<string, unknown>>(spec: Strip
         const explicit =
           typeof explicitArg === "string" && explicitArg ? [explicitArg] : eqValues(scan.constraints, fan.key);
         const childQuery = (): Record<string, QueryValue> => {
-          const { query } = listParams({ ...spec, baseQuery: undefined }, scan);
-          return { ...query, limit: 100 };
+          const { query } = listParams(fan.keepBaseQuery ? spec : { ...spec, baseQuery: undefined }, scan);
+          if (!fan.object && spec.paging?.limit !== false) query.limit = 100;
+          return query;
         };
-        if (explicit) {
+        /** One child request for a queue entry `id` or `id\u001f{json of parent-derived params}`. */
+        const childReq = (entry: string): PhaseRequest => {
+          const [id, extra] = entry.split("\u001f") as [string, string | undefined];
+          const ch = fan.child(id, extra ? (JSON.parse(extra) as Record<string, string>) : undefined);
+          return {
+            path: ch.path,
+            query: fan.object ? { ...(ch.query ?? {}) } : { ...childQuery(), ...ch.query },
+            mode: fan.object ? "object" : "list",
+            ctx: { [fan.key]: id },
+            missingOk: fan.object || !fan.parent,
+          };
+        };
+        if (explicit || !fan.parent) {
+          if (!explicit) {
+            throw new StripeError(
+              `${spec.name}: Stripe has no list of parents to fan out over; pass ${fan.arg} := '…' or filter WHERE ${fan.key} = '…' (or IN (…))`,
+            );
+          }
           // Read just the named parents' children, one phase each.
           for (;;) {
             const id = explicit[state.phase];
@@ -531,14 +624,7 @@ export function defineStripeTable<A extends Record<string, unknown>>(spec: Strip
               out.finish();
               return;
             }
-            const ch = fan.child(id);
-            const req: PhaseRequest = {
-              path: ch.path,
-              query: { ...childQuery(), ...ch.query },
-              mode: "list",
-              ctx: { [fan.key]: id },
-            };
-            const p = await page(req, state.cursor);
+            const p = await page(childReq(id), state.cursor);
             if (p.next) state.cursor = p.next;
             else {
               state.phase += 1;
@@ -567,26 +653,30 @@ export function defineStripeTable<A extends Record<string, unknown>>(spec: Strip
               const id = idOf(parent);
               if (!id) continue;
               const emb = expand.size ? undefined : fan.embedded?.(parent);
-              if (emb && !emb.hasMore) ready.push(...emb.data.map((r) => ({ ...r, __ctx: { [fan.key]: id } })));
-              else pending.push(id);
+              if (emb && !emb.hasMore) {
+                ready.push(...emb.data.map((r) => ({ ...r, __ctx: { [fan.key]: id } })));
+                continue;
+              }
+              if (fan.fromParent) {
+                const extra: Record<string, string> = {};
+                for (const [param, fieldName] of Object.entries(fan.fromParent)) {
+                  const v = idOf(at(parent, fieldName));
+                  if (v) extra[param] = v;
+                }
+                // A parent without the field (e.g. no ownership data) has no children to read.
+                if (Object.keys(extra).length < Object.keys(fan.fromParent).length) continue;
+                pending.push(`${id}\u001f${JSON.stringify(extra)}`);
+              } else pending.push(id);
             }
             state.queue = pending.join("\n");
             if (emit(ready)) return;
             continue;
           }
-          const ids = state.queue.split("\n");
-          const id = ids[0] as string;
-          const ch = fan.child(id);
-          const req: PhaseRequest = {
-            path: ch.path,
-            query: { ...childQuery(), ...ch.query },
-            mode: "list",
-            ctx: { [fan.key]: id },
-          };
-          const p = await page(req, state.cursor);
+          const entries = state.queue.split("\n");
+          const p = await page(childReq(entries[0] as string), state.cursor);
           if (p.next) state.cursor = p.next;
           else {
-            state.queue = ids.slice(1).join("\n");
+            state.queue = entries.slice(1).join("\n");
             state.cursor = "";
           }
           if (emit(p.rows)) return;

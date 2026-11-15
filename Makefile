@@ -11,7 +11,7 @@ HAYBARN_UNITTEST := $(TOOLS)/bin/haybarn-unittest
 TRANSPORT       ?= stdio
 
 .DEFAULT_GOAL := help
-.PHONY: help build test test-unit test-sql test-sql-all lint lint-explain lint-ai fmt check run run-http debug tools template-diff clean
+.PHONY: generate help build test test-unit test-sql test-sql-all lint lint-explain lint-ai fmt check run run-http debug tools template-diff clean
 
 help: ## List the targets
 	@awk 'BEGIN{FS=":.*## "} /^[a-zA-Z_-]+:.*## /{printf "  %-14s %s\n",$$1,$$2}' $(MAKEFILE_LIST)
@@ -60,6 +60,11 @@ run-http: build ## Serve over HTTP on port 8000
 debug: build tools ## Run one query against the worker with debug logging on stderr
 	@printf "LOAD vgi;\nATTACH 'stripe' (TYPE vgi, LOCATION '$(WORKER) --debug');\nSELECT * FROM stripe.main.balance();\n" \
 	  | uvx --from haybarn-cli==$(HAYBARN_VERSION) haybarn -no-agent
+
+generate: ## Regenerate the spec-driven layer, its replay data and its every-function SQL test from spec/stripe-openapi
+	uv run --no-project python scripts/generate_api.py
+	uv run --no-project python test/fixtures/build_api_fixture.py > test/fixtures/stripe-api-account.json
+	uv run --no-project python test/fixtures/build_api_tests.py > test/sql/api_every_function.test
 
 template-diff: ## Show upstream template changes since this project was created
 	uv run --no-project python scripts/vgi_template.py template-diff --stat
