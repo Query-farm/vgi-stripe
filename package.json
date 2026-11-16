@@ -1,5 +1,5 @@
 {
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "Stripe as SQL: a read-only VGI worker for DuckDB (payments, billing, payouts, Connect, events).",
@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@query-farm/apache-arrow": "^21.1.1",
-    "@query-farm/vgi": "~0.50.0",
+    "@query-farm/vgi": "~0.50.1",
     "@query-farm/vgi-rpc": "^0.29.7"
   },
   "devDependencies": {
